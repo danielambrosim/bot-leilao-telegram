@@ -1,0 +1,9 @@
+node_modules
+dist
+legacy
+audit
+dashboard-admin
+.git
+.env
+*.csv
+tests
