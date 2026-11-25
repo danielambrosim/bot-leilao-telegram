@@ -22,7 +22,20 @@ const schema = z
     APP_SECRET: z.string().min(32, 'APP_SECRET precisa de ao menos 32 caracteres'),
 
     // Documentos: armazenamento criptografado (AES-256-GCM). Chave = 32 bytes em base64.
+    // local = disco (dev/VPS) · s3 = bucket S3-compatível (R2, Supabase Storage, B2) para hosts sem disco
+    DOCS_STORAGE: z.enum(['local', 's3']).default('local'),
     DOCS_DIR: z.string().default('./data/docs'),
+    S3_ENDPOINT: z.string().url().optional(),
+    S3_REGION: z.string().default('auto'),
+    S3_BUCKET: z.string().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+
+    // Render injeta automaticamente; usado como PUBLIC_URL quando esta não for definida
+    RENDER_EXTERNAL_URL: z.string().url().optional(),
+
+    // Protege POST /tarefas/manutencao (chamado por agendador externo, ex.: GitHub Actions)
+    CRON_SECRET: z.string().min(32, 'CRON_SECRET precisa de ao menos 32 caracteres').optional(),
     DOCS_ENCRYPTION_KEY: z
       .string()
       .refine((v) => Buffer.from(v, 'base64').length === 32, 'DOCS_ENCRYPTION_KEY deve ter 32 bytes em base64'),
@@ -41,7 +54,13 @@ const schema = z
       .transform((v) => v === 'true'),
     SCRAPER_INTERVAL_HOURS: z.coerce.number().min(1).max(168).default(12),
   })
+  .transform((env) => ({ ...env, PUBLIC_URL: env.PUBLIC_URL ?? env.RENDER_EXTERNAL_URL }))
   .superRefine((env, ctx) => {
+    if (env.DOCS_STORAGE === 's3') {
+      for (const k of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
+        if (!env[k]) ctx.addIssue({ code: 'custom', path: [k], message: `DOCS_STORAGE=s3 exige ${k}` });
+      }
+    }
     if (env.NODE_ENV === 'production' && (!env.SMTP_HOST || !env.MAIL_FROM)) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'produção exige SMTP_HOST e MAIL_FROM' });
     }

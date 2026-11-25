@@ -16,7 +16,7 @@ consentimento próprio. O leiloeiro aprova ou recusa no painel.
 | 3 | Rate limit, código de e-mail com expiração, sessões persistentes, auditoria | ⏳ |
 | 4 | Painel do leiloeiro (Vite + React, login) — substitui `dashboard-admin/` | ⏳ |
 | 5 | Documentos criptografados no R2 com retenção; scraper e avisos de editais | ⏳ |
-| 6 | Deploy, capturas e site comercial | ⏳ |
+| 6 | Deploy (Render grátis: `render.yaml` + `docs/DEPLOY_RENDER.md`; VPS: `docker-compose.yml`), capturas e site comercial | 🚧 |
 
 ## Stack
 

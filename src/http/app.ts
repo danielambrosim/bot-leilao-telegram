@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
@@ -9,13 +10,23 @@ export interface AppDeps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bot?: Bot<any>;
   webhookSecret?: string;
+  /** Segredo do agendador externo; sem ele a rota de manutenção não existe */
+  cronSecret?: string;
+  manutencao?: () => Promise<unknown>;
 }
 
 export const WEBHOOK_PATH = '/telegram/webhook';
+export const MANUTENCAO_PATH = '/tarefas/manutencao';
 
-export function createApp({ pool, bot, webhookSecret }: AppDeps) {
+function segredoConfere(header: string | undefined, esperado: string): boolean {
+  const recebido = Buffer.from(header?.replace(/^Bearer\s+/i, '') ?? '');
+  const alvo = Buffer.from(esperado);
+  return recebido.length === alvo.length && timingSafeEqual(recebido, alvo);
+}
+
+export function createApp({ pool, bot, webhookSecret, cronSecret, manutencao }: AppDeps) {
   const app = express();
-  app.set('trust proxy', 1); // atrás do Caddy
+  app.set('trust proxy', 1); // atrás de proxy (Caddy / Render)
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
 
@@ -29,11 +40,31 @@ export function createApp({ pool, bot, webhookSecret }: AppDeps) {
   });
 
   if (bot && webhookSecret) {
-    // O Telegram envia o segredo no header X-Telegram-Bot-Api-Secret-Token; o grammY rejeita (401) se não bater
+    // O Telegram envia o segredo no header X-Telegram-Bot-Api-Secret-Token; o grammY rejeita (401) se não bater.
+    // onTimeout 'return': em etapa lenta (upload de documentos, cold start) responde 200 e continua processando,
+    // evitando que o Telegram reenvie o mesmo update e duplique o cadastro.
     app.post(
       WEBHOOK_PATH,
       rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }),
-      webhookCallback(bot, 'express', { secretToken: webhookSecret }),
+      webhookCallback(bot, 'express', { secretToken: webhookSecret, timeoutMilliseconds: 25_000, onTimeout: 'return' }),
+    );
+  }
+
+  if (cronSecret && manutencao) {
+    app.post(
+      MANUTENCAO_PATH,
+      rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }),
+      async (req, res, next) => {
+        if (!segredoConfere(req.get('authorization'), cronSecret)) {
+          res.status(401).json({ error: 'unauthorized' });
+          return;
+        }
+        try {
+          res.json({ ok: true, resultado: await manutencao() });
+        } catch (err) {
+          next(err);
+        }
+      },
     );
   }
 

@@ -1,0 +1,30 @@
+# Agendador gratuito para o Render grátis (que não tem cron no plano free).
+# Secrets do repositório (Settings > Secrets and variables > Actions):
+#   SBL_URL          ex.: https://sbl-bot.onrender.com
+#   SBL_CRON_SECRET  mesmo valor de CRON_SECRET no Render
+name: manutencao
+
+on:
+  schedule:
+    - cron: "17 9,21 * * *"   # 06:17 e 18:17 (Brasília)
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  manutencao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Acordar serviço (Render grátis pode levar ~1 min)
+        run: curl -fsS --retry 6 --retry-delay 15 --retry-all-errors --max-time 30 "$SBL_URL/healthz"
+        env:
+          SBL_URL: ${{ secrets.SBL_URL }}
+      - name: Coleta do Imprensa Leilões + limpeza de sessões/códigos
+        run: |
+          curl -fsS --max-time 120 -X POST \
+            -H "Authorization: Bearer $SBL_CRON_SECRET" \
+            "$SBL_URL/tarefas/manutencao"
+        env:
+          SBL_URL: ${{ secrets.SBL_URL }}
+          SBL_CRON_SECRET: ${{ secrets.SBL_CRON_SECRET }}

@@ -1,0 +1,55 @@
+# Blueprint do Render (Dashboard > New > Blueprint > selecione este repositório/branch)
+# Plano grátis: dorme após 15 min sem tráfego; sem disco -> documentos vão para bucket S3 (R2/Supabase).
+# Banco: Postgres externo (Neon grátis). O Postgres grátis do Render expira em 30 dias.
+services:
+  - type: web
+    name: sbl-bot
+    runtime: docker
+    plan: free
+    region: virginia          # mesma região do Neon (us-east-1) para menor latência
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BOT_MODE
+        value: webhook
+      - key: DOCS_STORAGE
+        value: s3
+      - key: SCRAPER_ENABLED
+        value: "true"
+      # Gerados pelo Render (copie CRON_SECRET para os secrets do GitHub)
+      - key: APP_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      # Preencher no painel (sync: false = nunca vai para o git)
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DOCS_ENCRYPTION_KEY
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
