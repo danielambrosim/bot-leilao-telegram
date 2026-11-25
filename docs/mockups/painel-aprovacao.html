@@ -1,0 +1,326 @@
+<title>Painel de Habilitação Colodete</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: mesa de análise — fila de habilitações à esquerda, ficha do arrematante à direita; no celular, ficha abaixo da fila */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --ink: #17212b;
+  --muted: #5b6876;
+  --line: #d9dee4;
+  --accent: #1f4e79;      /* azul pregão */
+  --accent-ink: #ffffff;
+  --brass: #b7791f;       /* martelo / destaque */
+  --ok: #1d7a46;
+  --ok-bg: #e3f3ea;
+  --warn: #9a5b00;
+  --warn-bg: #fdf0dc;
+  --bad: #b3261e;
+  --bad-bg: #fbe6e4;
+  --tg: #2a9bd8;
+  --tg-bubble: #e6f3fb;
+  --shadow: 0 1px 2px rgba(23,33,43,.06), 0 4px 16px rgba(23,33,43,.06);
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151b; --surface: #17202a; --surface-2: #1e2935; --ink: #e6ebf0; --muted: #9aa7b4; --line: #2b3846;
+  --accent: #6ea8dc; --accent-ink: #0c1620; --brass: #e0a64a;
+  --ok: #6fd39a; --ok-bg: #163324; --warn: #f0b35a; --warn-bg: #3a2a12; --bad: #f28b82; --bad-bg: #3b1a18;
+  --tg: #5bb8ea; --tg-bubble: #1b3344; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151b; --surface: #17202a; --surface-2: #1e2935; --ink: #e6ebf0; --muted: #9aa7b4; --line: #2b3846;
+  --accent: #6ea8dc; --accent-ink: #0c1620; --brass: #e0a64a;
+  --ok: #6fd39a; --ok-bg: #163324; --warn: #f0b35a; --warn-bg: #3a2a12; --bad: #f28b82; --bad-bg: #3b1a18;
+  --tg: #5bb8ea; --tg-bubble: #1b3344; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Cabeçalho */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.gavel { width: 40px; height: 40px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; flex: none; }
+.gavel svg { width: 22px; height: 22px; fill: var(--accent-ink); }
+.brand h1 { font-size: 1.35rem; font-weight: 800; }
+.brand p { margin: 0; color: var(--muted); font-size: .85rem; }
+.badge-demo { font: 600 .72rem/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--warn);
+  background: var(--warn-bg); padding: 7px 10px; border-radius: 999px; }
+
+/* Como funciona */
+.flow { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.flow li { list-style: none; padding: 14px 16px; display: grid; gap: 2px; border-right: 1px solid var(--line); min-width: 0; }
+.flow li:last-child { border-right: 0; }
+.flow b { font-family: var(--f-display); font-size: .95rem; }
+.flow span { color: var(--muted); font-size: .82rem; }
+.flow .n { font: 600 .7rem/1 var(--f-mono); color: var(--brass); letter-spacing: .08em; }
+.flow li.here { background: var(--surface-2); box-shadow: inset 0 -3px 0 var(--accent); }
+@media (max-width: 760px) { .flow { grid-template-columns: 1fr 1fr; } .flow li:nth-child(2) { border-right: 0; } .flow li:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
+
+/* Indicadores */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+.kpi small { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.kpi strong { font: 700 1.6rem/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.kpi.pend strong { color: var(--warn); }
+@media (max-width: 760px) { .kpis { grid-template-columns: 1fr 1fr; } }
+
+/* Mesa */
+.desk { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 20px; align-items: start; }
+@media (max-width: 920px) { .desk { grid-template-columns: 1fr; } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
+.panel-head { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.panel-head h2 { font-size: 1.05rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 5px 10px; border-radius: 999px; font-size: .82rem; }
+.tab[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tab .c { font-family: var(--f-mono); opacity: .75; margin-left: 4px; }
+.search { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); font: inherit; }
+
+.list { display: grid; max-height: 560px; overflow: auto; }
+.row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; text-align: left; background: none; border-left: 3px solid transparent; color: var(--ink); width: 100%; border-top: 0; border-right: 0; }
+.row:hover { background: var(--surface-2); }
+.row[aria-current="true"] { background: var(--surface-2); border-left-color: var(--accent); }
+.row .nome { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .meta { grid-column: 1; color: var(--muted); font-size: .8rem; }
+.row .when { color: var(--muted); font-size: .78rem; text-align: right; }
+.empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 .74rem/1 var(--f-body); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.pendente { color: var(--warn); background: var(--warn-bg); }
+.pill.aprovado { color: var(--ok); background: var(--ok-bg); }
+.pill.recusado { color: var(--bad); background: var(--bad-bg); }
+
+/* Ficha */
+.ficha { padding: 18px; display: grid; gap: 18px; }
+.ficha-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: start; }
+.ficha-top h2 { font-size: 1.3rem; }
+.ficha-top p { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
+.dl { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 6px 16px; margin: 0; }
+.dl dt { color: var(--muted); font-size: .82rem; }
+.dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.sec-title { font: 600 .72rem/1 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+.docs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.doc { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-2); display: grid; }
+.doc .prev { aspect-ratio: 16/10; max-width: 100%; display: grid; place-items: center; position: relative; overflow: hidden; }
+.doc .prev svg { width: 100%; height: 100%; }
+.doc .prev .lock { position: absolute; inset: auto 8px 8px auto; font: 500 .7rem/1 var(--f-mono); background: var(--surface); color: var(--muted); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); }
+.doc .cap { padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; font-size: .8rem; border-top: 1px solid var(--line); background: var(--surface); }
+.doc .cap span { color: var(--muted); }
+
+.checks { display: grid; gap: 6px; }
+.check { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.check .auto { font: 500 .68rem/1 var(--f-mono); color: var(--ok); background: var(--ok-bg); padding: 3px 6px; border-radius: 4px; }
+
+.actions { display: grid; gap: 10px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { border: 1px solid transparent; border-radius: 9px; padding: 10px 16px; font-weight: 600; }
+.btn.approve { background: var(--ok); color: var(--surface); }
+.btn.reject { background: transparent; color: var(--bad); border-color: var(--bad); }
+.btn.ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.hint { color: var(--muted); font-size: .8rem; margin: 0; }
+.reject-box { display: grid; gap: 8px; padding: 12px; border: 1px dashed var(--bad); border-radius: 10px; background: var(--bad-bg); }
+.reject-box label { font-size: .82rem; font-weight: 600; color: var(--bad); }
+.reject-box select, .reject-box textarea { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+
+/* Telegram + auditoria */
+.split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+@media (max-width: 620px) { .split { grid-template-columns: 1fr; } .docs { grid-template-columns: 1fr; } }
+.phone { border: 1px solid var(--line); border-radius: 16px; background: var(--surface-2); padding: 10px; display: grid; gap: 8px; align-content: start; min-height: 150px; }
+.phone .bar { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+.phone .bar i { width: 22px; height: 22px; border-radius: 50%; background: var(--tg); display: inline-block; flex: none; }
+.bubble { background: var(--tg-bubble); border-radius: 12px 12px 12px 4px; padding: 9px 11px; font-size: .86rem; max-width: 95%; white-space: pre-line; }
+.bubble time { display: block; text-align: right; font: .68rem var(--f-mono); color: var(--muted); margin-top: 4px; }
+.audit { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: .82rem; }
+.audit li { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 10px; }
+.audit time { font-family: var(--f-mono); color: var(--muted); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: .88rem; box-shadow: var(--shadow); }
+.foot { color: var(--muted); font-size: .78rem; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .row, .tab, .btn { transition: background-color .15s, border-color .15s, opacity .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="gavel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.6 2.3l7.1 7.1-2.8 2.8-1.4-1.4-2.8 2.8 5.7 5.7-2.1 2.1-5.7-5.7-2.8 2.8 1.4 1.4-2.8 2.8L1.3 15.6l2.8-2.8 1.4 1.4 7.1-7.1-1.4-1.4 3.4-3.4zM2 21h9v2H2z"/></svg></div>
+      <div>
+        <h1>Colodete Leilões</h1>
+        <p>Painel de habilitação de arrematantes</p>
+      </div>
+    </div>
+    <span class="badge-demo">Modelo · dados fictícios</span>
+  </header>
+
+  <ol class="flow" aria-label="Como funciona a habilitação">
+    <li><span class="n">ETAPA 1</span><b>Link do leilão</b><span>Você divulga t.me/…?start=colodete</span></li>
+    <li><span class="n">ETAPA 2</span><b>Cadastro no Telegram</b><span>Termo, e-mail confirmado, CPF e documentos</span></li>
+    <li class="here"><span class="n">ETAPA 3</span><b>Análise neste painel</b><span>Sua equipe aprova ou recusa</span></li>
+    <li><span class="n">ETAPA 4</span><b>Aviso automático</b><span>O arrematante recebe o resultado no Telegram</span></li>
+  </ol>
+
+  <section class="kpis" aria-label="Resumo">
+    <div class="kpi pend"><small>Aguardando análise</small><strong id="k-pend">0</strong></div>
+    <div class="kpi"><small>Aprovados (30 dias)</small><strong id="k-ok">0</strong></div>
+    <div class="kpi"><small>Recusados (30 dias)</small><strong id="k-bad">0</strong></div>
+    <div class="kpi"><small>Tempo médio de análise</small><strong>3h 40min</strong></div>
+  </section>
+
+  <main class="desk">
+    <section class="panel" aria-label="Fila de habilitações">
+      <div class="panel-head">
+        <h2>Habilitações</h2>
+        <div class="tabs" role="group" aria-label="Filtrar por status">
+          <button class="tab" data-f="pendente" aria-pressed="true">Pendentes<span class="c" id="c-pendente"></span></button>
+          <button class="tab" data-f="aprovado" aria-pressed="false">Aprovados<span class="c" id="c-aprovado"></span></button>
+          <button class="tab" data-f="recusado" aria-pressed="false">Recusados<span class="c" id="c-recusado"></span></button>
+          <button class="tab" data-f="todos" aria-pressed="false">Todos<span class="c" id="c-todos"></span></button>
+        </div>
+        <input id="busca" class="search" type="search" placeholder="Buscar por nome, e-mail ou final do CPF" aria-label="Buscar">
+      </div>
+      <div class="list" id="lista"></div>
+    </section>
+
+    <section class="panel" aria-label="Ficha do arrematante" id="ficha"></section>
+  </main>
+
+  <p class="foot">Modelo para demonstração. Nomes, CPFs e documentos são fictícios. CPF aparece mascarado; o documento só é aberto por quem tem acesso, e cada abertura fica registrada.</p>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const hoje = new Date();
+const h = (min) => new Date(hoje.getTime() - min * 60000);
+const dados = [
+  { id: 1041, nome: 'Marina Albuquerque Rocha', email: 'marina.rocha@exemplo.com', cpf: '***.482.193-**', cnpj: null, end: 'Rua Sete de Setembro, 412, Centro, Vitória/ES, 29015-000', tg: '@marina_r', em: h(35), status: 'pendente', doc: 'CNH', comp: 'Conta de energia · out/2026', termo: 2, leilao: 'Leilão 118/2026 · Imóveis Serra/ES' },
+  { id: 1040, nome: 'Construtora Pedra Azul Ltda', email: 'compras@pedraazul.exemplo.com', cpf: '***.774.020-**', cnpj: '12.345.678/0001-90', end: 'Av. Nossa Senhora da Penha, 1500, Praia do Canto, Vitória/ES', tg: '@pedraazul_compras', em: h(140), status: 'pendente', doc: 'RG do sócio', comp: 'Contrato social', termo: 2, leilao: 'Leilão 117/2026 · Máquinas pesadas' },
+  { id: 1039, nome: 'Jorge Henrique Lacerda', email: 'jh.lacerda@exemplo.com', cpf: '***.301.558-**', cnpj: null, end: 'Rua das Palmeiras, 88, Itapuã, Vila Velha/ES', tg: '@jhlacerda', em: h(290), status: 'pendente', doc: 'RG', comp: 'Conta de água · set/2026', termo: 2, leilao: 'Leilão 118/2026 · Imóveis Serra/ES' },
+  { id: 1038, nome: 'Patrícia Mendes Couto', email: 'pmcouto@exemplo.com', cpf: '***.115.674-**', cnpj: null, end: 'Rua Goiás, 230, Centro, Cachoeiro de Itapemirim/ES', tg: '@patcouto', em: h(1500), status: 'aprovado', doc: 'CNH', comp: 'Fatura de internet · out/2026', termo: 2, leilao: 'Leilão 116/2026 · Veículos', decisao: { por: 'Ana (operadora)', em: h(1320) } },
+  { id: 1037, nome: 'Ricardo Faria Neto', email: 'ricardo.neto@exemplo.com', cpf: '***.920.441-**', cnpj: null, end: 'Rua A, 12, Bairro Novo, Serra/ES', tg: '@rfneto', em: h(2900), status: 'recusado', doc: 'RG', comp: 'Comprovante ilegível', termo: 1, leilao: 'Leilão 116/2026 · Veículos', decisao: { por: 'Carlos (dono)', em: h(2700), motivo: 'Comprovante de residência ilegível. Envie uma foto nítida, de até 90 dias.' } },
+  { id: 1036, nome: 'Luciana Prado Siqueira', email: 'lu.siqueira@exemplo.com', cpf: '***.563.882-**', cnpj: null, end: 'Av. Champagnat, 905, Praia da Costa, Vila Velha/ES', tg: '@lusiqueira', em: h(4300), status: 'aprovado', doc: 'CNH', comp: 'Conta de gás · out/2026', termo: 1, leilao: 'Leilão 115/2026 · Imóveis Grande Vitória', decisao: { por: 'Ana (operadora)', em: h(4100) } },
+];
+dados.forEach((d) => { d.log = [{ em: d.em, txt: 'Aceitou o termo v' + d.termo + ' e enviou cadastro pelo Telegram' }, { em: new Date(d.em.getTime() + 60000), txt: 'E-mail confirmado por código' }];
+  if (d.decisao) d.log.push({ em: d.decisao.em, txt: (d.status === 'aprovado' ? 'Aprovado' : 'Recusado') + ' por ' + d.decisao.por }); });
+
+let filtro = 'pendente', selecionado = dados[0].id, rejeitando = false;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rel = (d) => { const m = Math.round((hoje - d) / 60000); return m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} d`; };
+const hora = (d) => d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const LABEL = { pendente: 'Pendente', aprovado: 'Aprovado', recusado: 'Recusado' };
+
+function contar() {
+  const c = (s) => dados.filter((d) => d.status === s).length;
+  $('#k-pend').textContent = c('pendente'); $('#k-ok').textContent = c('aprovado'); $('#k-bad').textContent = c('recusado');
+  ['pendente', 'aprovado', 'recusado'].forEach((s) => ($('#c-' + s).textContent = c(s)));
+  $('#c-todos').textContent = dados.length;
+}
+
+function renderLista() {
+  const q = $('#busca').value.trim().toLowerCase();
+  const itens = dados.filter((d) => (filtro === 'todos' || d.status === filtro) && (!q || (d.nome + d.email + d.cpf).toLowerCase().includes(q)));
+  $('#lista').innerHTML = itens.length ? itens.map((d) => `
+    <button class="row" data-id="${d.id}" aria-current="${d.id === selecionado}">
+      <span class="nome">${esc(d.nome)}</span><span class="pill ${d.status}">${LABEL[d.status]}</span>
+      <span class="meta">${esc(d.leilao)}</span><span class="when">${rel(d.em)}</span>
+    </button>`).join('') : '<p class="empty">Nenhuma habilitação neste filtro.</p>';
+}
+
+function docSvg(tipo) {
+  const linhas = [0, 1, 2, 3].map((i) => `<rect x="${tipo === 'id' ? 70 : 18}" y="${30 + i * 16}" width="${tipo === 'id' ? 70 - i * 8 : 120 - i * 14}" height="7" rx="3" fill="var(--line)"/>`).join('');
+  const foto = tipo === 'id' ? '<rect x="18" y="28" width="40" height="52" rx="4" fill="var(--line)"/><circle cx="38" cy="46" r="9" fill="var(--muted)" opacity=".5"/>' : '<rect x="18" y="12" width="60" height="9" rx="3" fill="var(--brass)" opacity=".6"/>';
+  return `<svg viewBox="0 0 160 100" aria-hidden="true"><rect x="8" y="6" width="144" height="88" rx="6" fill="var(--surface)" stroke="var(--line)"/>${foto}${linhas}</svg>`;
+}
+
+function msgTelegram(d) {
+  if (d.status === 'aprovado') return `✅ Sua habilitação com Colodete Leilões foi APROVADA.\nVocê já pode dar lances no ${d.leilao.split(' · ')[0]}.`;
+  if (d.status === 'recusado') return `❌ Sua habilitação com Colodete Leilões foi recusada.\nMotivo: ${d.decisao.motivo}\nCorrija e envie de novo pelo mesmo link.`;
+  return '⏳ Recebemos seu cadastro. A Colodete Leilões está analisando seus documentos. Você será avisado aqui.';
+}
+
+function renderFicha() {
+  const d = dados.find((x) => x.id === selecionado);
+  if (!d) { $('#ficha').innerHTML = '<p class="empty">Selecione uma habilitação.</p>'; return; }
+  const pend = d.status === 'pendente';
+  $('#ficha').innerHTML = `<div class="ficha">
+    <div class="ficha-top"><div><h2>${esc(d.nome)}</h2><p>Habilitação <span class="mono">#${d.id}</span> · ${esc(d.leilao)}</p></div><span class="pill ${d.status}">${LABEL[d.status]}</span></div>
+    <div><div class="sec-title">Dados informados</div><dl class="dl">
+      <dt>E-mail</dt><dd>${esc(d.email)} <span class="pill aprovado" style="margin-left:4px">confirmado</span></dd>
+      <dt>CPF</dt><dd class="mono">${d.cpf}</dd>
+      ${d.cnpj ? `<dt>CNPJ</dt><dd class="mono">${d.cnpj}</dd>` : ''}
+      <dt>Endereço</dt><dd>${esc(d.end)}</dd>
+      <dt>Telegram</dt><dd>${esc(d.tg)}</dd>
+      <dt>Termo</dt><dd>Versão ${d.termo}, aceito em <span class="mono">${hora(d.em)}</span></dd>
+    </dl></div>
+    <div><div class="sec-title">Documentos (criptografados)</div><div class="docs">
+      <div class="doc"><div class="prev">${docSvg('id')}<span class="lock">AES-256</span></div><div class="cap"><b>${esc(d.doc)}</b><span>JPG · 214 KB</span></div></div>
+      <div class="doc"><div class="prev">${docSvg('comp')}<span class="lock">AES-256</span></div><div class="cap"><b>Comprovante</b><span>${esc(d.comp)}</span></div></div>
+    </div></div>
+    ${pend ? `<div><div class="sec-title">Conferência</div><div class="checks">
+      <label class="check"><input type="checkbox" checked disabled> CPF válido (dígito verificador) <span class="auto">automático</span></label>
+      <label class="check"><input type="checkbox" checked disabled> E-mail confirmado por código <span class="auto">automático</span></label>
+      <label class="check"><input type="checkbox" class="manual" id="chk-doc-${d.id}"> Documento legível e nome confere</label>
+      <label class="check"><input type="checkbox" class="manual" id="chk-end-${d.id}"> Comprovante recente e endereço confere</label>
+    </div></div>
+    <div class="actions">
+      <div class="btns"><button class="btn approve" id="aprovar" disabled>Aprovar habilitação</button><button class="btn reject" id="recusar">Recusar</button></div>
+      <p class="hint" id="hint">Marque as duas conferências manuais para liberar a aprovação.</p>
+      <div class="reject-box" id="rbox" ${rejeitando ? '' : 'hidden'}>
+        <label for="motivo">Motivo (enviado ao arrematante)</label>
+        <select id="motivo"><option value="">Escolha um motivo…</option><option>Documento ilegível. Envie uma foto nítida do documento com foto.</option><option>Comprovante de residência com mais de 90 dias. Envie um recente.</option><option>Nome do documento diferente do cadastro.</option><option value="outro">Outro motivo…</option></select>
+        <textarea id="motivo-txt" rows="2" placeholder="Descreva o motivo" hidden></textarea>
+        <div class="btns"><button class="btn reject" id="conf-recusa" disabled>Confirmar recusa</button><button class="btn ghost" id="cancela-recusa">Voltar</button></div>
+      </div>
+    </div>` : `<p class="hint">Decidido por <b>${esc(d.decisao.por)}</b> em <span class="mono">${hora(d.decisao.em)}</span>.${d.decisao.motivo ? ' Motivo: ' + esc(d.decisao.motivo) : ''}</p>`}
+    <div class="split">
+      <div><div class="sec-title">O que o arrematante vê</div><div class="phone"><div class="bar"><i></i> Bot de habilitação</div><div class="bubble">${esc(msgTelegram(d))}<time>${hora(d.decisao ? d.decisao.em : d.em)}</time></div></div></div>
+      <div><div class="sec-title">Histórico (auditoria)</div><ul class="audit">${d.log.map((l) => `<li><time>${hora(l.em)}</time><span>${esc(l.txt)}</span></li>`).join('')}</ul></div>
+    </div>
+  </div>`;
+  if (pend) ligarAcoes(d);
+}
+
+function ligarAcoes(d) {
+  const manual = [...document.querySelectorAll('.manual')];
+  const upd = () => { const ok = manual.every((m) => m.checked); $('#aprovar').disabled = !ok; $('#hint').textContent = ok ? 'Pronto para aprovar. O arrematante será avisado na hora.' : 'Marque as duas conferências manuais para liberar a aprovação.'; };
+  manual.forEach((m) => m.addEventListener('change', upd));
+  $('#aprovar').addEventListener('click', () => decidir(d, 'aprovado'));
+  $('#recusar').addEventListener('click', () => { rejeitando = true; $('#rbox').hidden = false; $('#motivo').focus(); });
+  $('#cancela-recusa').addEventListener('click', () => { rejeitando = false; $('#rbox').hidden = true; });
+  const motivoOk = () => { const v = $('#motivo').value; $('#motivo-txt').hidden = v !== 'outro'; $('#conf-recusa').disabled = !(v && (v !== 'outro' || $('#motivo-txt').value.trim().length >= 10)); };
+  $('#motivo').addEventListener('change', motivoOk); $('#motivo-txt').addEventListener('input', motivoOk);
+  $('#conf-recusa').addEventListener('click', () => { const v = $('#motivo').value; decidir(d, 'recusado', v === 'outro' ? $('#motivo-txt').value.trim() : v); });
+}
+
+function decidir(d, status, motivo) {
+  d.status = status; d.decisao = { por: 'Você', em: new Date(), motivo };
+  d.log.push({ em: d.decisao.em, txt: (status === 'aprovado' ? 'Aprovado' : 'Recusado') + ' por Você' }, { em: d.decisao.em, txt: 'Aviso enviado ao arrematante no Telegram' });
+  rejeitando = false; contar(); renderLista(); renderFicha();
+  toast(status === 'aprovado' ? `${d.nome.split(' ')[0]} aprovado. Aviso enviado no Telegram.` : `Recusa registrada. ${d.nome.split(' ')[0]} recebeu o motivo no Telegram.`);
+}
+
+let tt; function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(tt); tt = setTimeout(() => (el.hidden = true), 3200); }
+
+document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+  filtro = b.dataset.f; document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderLista();
+}));
+$('#lista').addEventListener('click', (e) => { const r = e.target.closest('.row'); if (!r) return; selecionado = Number(r.dataset.id); rejeitando = false; renderLista(); renderFicha(); });
+$('#busca').addEventListener('input', renderLista);
+contar(); renderLista(); renderFicha();
+</script>
