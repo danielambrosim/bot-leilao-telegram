@@ -24,7 +24,12 @@ describe('escapeHtml', () => {
 });
 
 describe('loadEnv', () => {
-  const base = { DATABASE_URL: 'postgres://u:p@localhost:5432/db', TELEGRAM_TOKEN: TOKEN };
+  const base = {
+    DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+    TELEGRAM_TOKEN: TOKEN,
+    APP_SECRET: 's'.repeat(40),
+    DOCS_ENCRYPTION_KEY: Buffer.alloc(32).toString('base64'),
+  };
 
   it('aplica padrões', () => {
     const env = loadEnv(base);
@@ -59,5 +64,26 @@ describe('loadEnv', () => {
 
   it('variável vazia conta como ausente', () => {
     expect(loadEnv({ ...base, PORT: '' }).PORT).toBe(3000);
+  });
+});
+
+describe('loadEnv (fase 2)', () => {
+  const base = {
+    DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+    TELEGRAM_TOKEN: TOKEN,
+    APP_SECRET: 's'.repeat(40),
+    DOCS_ENCRYPTION_KEY: Buffer.alloc(32).toString('base64'),
+  };
+  it('exige chave de documentos de 32 bytes e APP_SECRET forte', () => {
+    expect(() => loadEnv({ ...base, DOCS_ENCRYPTION_KEY: 'curta' })).toThrow(/DOCS_ENCRYPTION_KEY/);
+    expect(() => loadEnv({ ...base, APP_SECRET: 'curto' })).toThrow(/APP_SECRET/);
+  });
+  it('produção exige SMTP (nunca mostrar código no console)', () => {
+    expect(() => loadEnv({ ...base, NODE_ENV: 'production' })).toThrow(/SMTP_HOST/);
+    expect(loadEnv({ ...base, NODE_ENV: 'production', SMTP_HOST: 'smtp.x', MAIL_FROM: 'a@b.com' }).NODE_ENV).toBe('production');
+  });
+  it('SCRAPER_ENABLED vira boolean', () => {
+    expect(loadEnv(base).SCRAPER_ENABLED).toBe(false);
+    expect(loadEnv({ ...base, SCRAPER_ENABLED: 'true' }).SCRAPER_ENABLED).toBe(true);
   });
 });

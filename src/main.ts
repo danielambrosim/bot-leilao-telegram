@@ -2,7 +2,14 @@ import { config } from 'dotenv';
 import { loadEnv } from './config/env';
 import { createPool } from './db/pool';
 import { createLeiloeiroRepo } from './leiloeiros/repo';
-import { createBot } from './bot/createBot';
+import { createArrematanteRepo } from './arrematantes/repo';
+import { createCodigoEmailService } from './verificacao/codigoEmail';
+import { createMailer } from './mail/mailer';
+import { createLocalDocStore } from './docs/store';
+import { createPublicacaoRepo } from './publicacoes/repo';
+import { coletarImprensaLeiloes } from './scraper/imprensaLeiloes';
+import { createBot, type SessionData } from './bot/createBot';
+import { createPgSessionStorage, limparSessoesExpiradas } from './bot/sessionStorage';
 import { createApp } from './http/app';
 
 async function main() {
@@ -11,7 +18,17 @@ async function main() {
   const pool = createPool(env.DATABASE_URL);
   await pool.query('SELECT 1'); // falha cedo e com mensagem clara se o banco estiver fora
 
-  const bot = createBot({ token: env.TELEGRAM_TOKEN, leiloeiros: createLeiloeiroRepo(pool) });
+  const publicacoes = createPublicacaoRepo(pool);
+  const bot = createBot({
+    token: env.TELEGRAM_TOKEN,
+    leiloeiros: createLeiloeiroRepo(pool),
+    arrematantes: createArrematanteRepo(pool),
+    codigos: createCodigoEmailService(pool, env.APP_SECRET),
+    mailer: createMailer(env),
+    docs: createLocalDocStore(env.DOCS_DIR, env.DOCS_ENCRYPTION_KEY),
+    publicacoes,
+    sessionStorage: createPgSessionStorage<SessionData>(pool),
+  });
   const webhook = env.BOT_MODE === 'webhook';
   const app = createApp({ pool, bot: webhook ? bot : undefined, webhookSecret: env.TELEGRAM_WEBHOOK_SECRET });
 
@@ -26,11 +43,24 @@ async function main() {
     void bot.start({ onStart: (me) => console.log(`Bot @${me.username} em polling`) });
   }
 
+  // Tarefas periódicas
+  const timers: NodeJS.Timeout[] = [];
+  timers.push(setInterval(() => void limparSessoesExpiradas(pool).catch(() => undefined), 15 * 60_000));
+  if (env.SCRAPER_ENABLED) {
+    const coletar = () =>
+      coletarImprensaLeiloes(publicacoes)
+        .then((r) => console.log(`[scraper] imprensa-leiloes: ${r.inseridas} novas, ${r.erros.length} erros`))
+        .catch((e) => console.error('[scraper] falhou:', e.message));
+    timers.push(setTimeout(coletar, 60_000));
+    timers.push(setInterval(coletar, env.SCRAPER_INTERVAL_HOURS * 3_600_000));
+  }
+
   let closing = false;
   const shutdown = async (signal: string) => {
     if (closing) return;
     closing = true;
     console.log(`${signal} recebido, encerrando...`);
+    timers.forEach(clearTimeout);
     await bot.stop().catch(() => undefined);
     server.close();
     await pool.end().catch(() => undefined);

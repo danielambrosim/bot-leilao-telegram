@@ -4,7 +4,7 @@ Bot compartilhado para **leiloeiros (B2B)**. O arrematante abre o link do leiloe
 (`t.me/<SeuBot>?start=<slug>`), faz um **cadastro único** e se habilita em cada leiloeiro com
 consentimento próprio. O leiloeiro aprova ou recusa no painel.
 
-> **Status: v2 em reescrita (fase 1 de 6).** O código da v1 está em `legacy/src-v1` apenas como referência.
+> **Status: v2 em reescrita (fase 2 de 6).** O código da v1 está em `legacy/src-v1` apenas como referência.
 > A auditoria de segurança da v1 está em [`audit/RELATORIO_ATAQUE.md`](audit/RELATORIO_ATAQUE.md).
 
 ## Roadmap
@@ -12,7 +12,7 @@ consentimento próprio. O leiloeiro aprova ou recusa no painel.
 | Fase | Conteúdo | Status |
 |---|---|---|
 | 1 | Schema Postgres, env validado, grammY + webhook, Docker/Caddy, remoção de rotas abertas e Puppeteer | ✅ |
-| 2 | Fluxo de cadastro único + habilitação por leiloeiro | ⏳ |
+| 2 | Cadastro único, habilitação por leiloeiro, código de e-mail com limite, docs cifrados, /excluirmeusdados, coleta do Jornal Imprensa Leilões | ✅ |
 | 3 | Rate limit, código de e-mail com expiração, sessões persistentes, auditoria | ⏳ |
 | 4 | Painel do leiloeiro (Vite + React, login) — substitui `dashboard-admin/` | ⏳ |
 | 5 | Documentos criptografados no R2 com retenção; scraper e avisos de editais | ⏳ |
@@ -32,10 +32,11 @@ npm install
 docker compose -f docker-compose.dev.yml up -d
 npm run migrate
 docker compose -f docker-compose.dev.yml exec -T db psql -U sbl -d sbl < db/seeds/dev.sql
+npm run coletar:imprensa        # opcional: coleta notícias/edições do Jornal Imprensa Leilões
 npm run dev                     # bot em polling
 ```
 
-Teste no Telegram: `t.me/<SeuBot>?start=demo`.
+Teste no Telegram: `t.me/<SeuBot>?start=colodete` (ou `demo`). Sem SMTP configurado, o código de e-mail aparece no console.
 
 ### Testes
 

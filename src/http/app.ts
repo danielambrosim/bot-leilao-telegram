@@ -6,7 +6,8 @@ import type { Pool } from 'pg';
 
 export interface AppDeps {
   pool: Pool;
-  bot?: Bot;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  bot?: Bot<any>;
   webhookSecret?: string;
 }
 

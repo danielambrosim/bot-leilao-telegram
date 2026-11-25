@@ -16,7 +16,8 @@
     "webhook:set": "tsx src/scripts/setWebhook.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts"
   },
   "repository": {
     "type": "git",
@@ -24,11 +25,13 @@
   },
   "license": "MIT",
   "dependencies": {
+    "cheerio": "^1.2.0",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.5",
     "grammy": "^1.48.0",
     "helmet": "^8.3.0",
+    "nodemailer": "^10.6.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "zod": "^4.6.7"
@@ -36,6 +39,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.7",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.2",
