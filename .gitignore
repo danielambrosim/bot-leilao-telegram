@@ -4,3 +4,13 @@ dist/
 coverage/
 .DS_Store
 .venv
+
+# Segredos e dados exportados
+.env.*
+!.env.example
+*.csv
+data/
+exports/
+
+# Auditoria local (provas de conceito, caminhos da máquina) — não publicar
+audit/

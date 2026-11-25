@@ -1,0 +1,53 @@
+# Produção: docker compose up -d --build
+# Só o Caddy expõe portas (80/443). Postgres e app ficam na rede interna.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sbl
+      POSTGRES_USER: sbl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbl -d sbl"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      BOT_MODE: webhook
+      DATABASE_URL: postgres://sbl:${POSTGRES_PASSWORD}@db:5432/sbl
+      DOCS_DIR: /app/data/docs
+      EXPORTS_DIR: /app/data/exports
+    volumes:
+      - docs:/app/data   # documentos cifrados persistem entre deploys
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?defina DOMAIN no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  docs:
+  pgdata:
+  caddy_data:
+  caddy_config:

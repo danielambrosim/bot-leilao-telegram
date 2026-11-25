@@ -1,0 +1,18 @@
+# Caixa de e-mail falsa para testes (nenhum e-mail sai para a internet).
+# Interface: http://127.0.0.1:8025
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  app:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      MAIL_FROM: "SBL Piloto <piloto@sbl.test>"
+    depends_on:
+      - mailpit

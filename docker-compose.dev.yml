@@ -1,0 +1,21 @@
+# Desenvolvimento: só o Postgres, acessível apenas em 127.0.0.1:5432
+#   docker compose -f docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sbl
+      POSTGRES_USER: sbl
+      POSTGRES_PASSWORD: sbl_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbl -d sbl"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata_dev:

@@ -1,0 +1,17 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Só o webhook do Telegram e o healthcheck são públicos nesta fase
+	@publico path /telegram/webhook /healthz
+	handle @publico {
+		reverse_proxy app:3000
+	}
+	handle {
+		respond 404
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

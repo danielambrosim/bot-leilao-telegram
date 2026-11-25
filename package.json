@@ -1,52 +1,53 @@
 {
   "name": "sbl",
-  "version": "1.0.0",
-  "main": "dist/bot.js",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "Habilitação digital de arrematantes para leiloeiros via Telegram (B2B, bot compartilhado).",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "ts-node src/bot.ts",
-    "dev": "ts-node src/bot.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "npm init -y\r npm install node-telegram-bot-api mysql2 dotenv bcrypt axios cheerio nodemailer\r npm install -D typescript @types/node @types/bcrypt @types/node-telegram-bot-api ts-node\r npx tsc --init",
-  "dependencies": {
-    "axios": "^1.9.0",
-    "bcrypt": "^6.0.0",
-    "cheerio": "^1.0.0",
-    "csv-writer": "^1.6.0",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "json2csv": "^6.0.0-alpha.2",
-    "mysql2": "^3.14.1",
-    "node-telegram-bot-api": "^0.66.0",
-    "nodemailer": "^7.0.3",
-    "puppeteer": "^24.10.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "sbl": "file:"
-  },
-  "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
-    "@types/express": "^5.0.3",
-    "@types/jest": "^29.5.14",
-    "@types/json2csv": "^5.0.7",
-    "@types/node": "^22.15.30",
-    "@types/node-telegram-bot-api": "^0.64.8",
-    "@types/nodemailer": "^6.4.17",
-    "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.5",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "migrate:prod": "node dist/db/migrate.js",
+    "webhook:set": "tsx src/scripts/setWebhook.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts",
+    "exportar:habilitados": "tsx src/scripts/exportarHabilitados.ts",
+    "seed": "tsx src/scripts/seed.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/danielambrosim/SBL.git"
+    "url": "git+https://github.com/danielambrosim/bot-leilao-telegram.git"
   },
-  "bugs": {
-    "url": "https://github.com/danielambrosim/SBL/issues"
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1177.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.5",
+    "grammy": "^1.48.0",
+    "helmet": "^8.3.0",
+    "nodemailer": "^10.6.1",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
   },
-  "homepage": "https://github.com/danielambrosim/SBL#readme"
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.7",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  }
 }
