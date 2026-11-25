@@ -1,0 +1,41 @@
+# Piloto: mesma imagem de produção, bot em POLLING (não precisa de domínio nem HTTPS).
+# Roda em qualquer máquina com internet de saída (VPS barata ou um PC ligado 24h).
+#   docker compose -f docker-compose.piloto.yml up -d --build
+# Teste local sem e-mail real: adicione  -f docker-compose.mailpit.yml  (caixa de e-mail falsa em http://127.0.0.1:8025)
+name: sbl-piloto
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sbl
+      POSTGRES_USER: sbl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - pgdata_piloto:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbl -d sbl"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      BOT_MODE: polling
+      DATABASE_URL: postgres://sbl:${POSTGRES_PASSWORD}@db:5432/sbl
+      DOCS_DIR: /app/data/docs
+    volumes:
+      - docs_piloto:/app/data
+    ports:
+      - "127.0.0.1:3000:3000"   # só healthcheck local
+
+volumes:
+  pgdata_piloto:
+  docs_piloto:

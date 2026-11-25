@@ -27,6 +27,9 @@ services:
       NODE_ENV: production
       BOT_MODE: webhook
       DATABASE_URL: postgres://sbl:${POSTGRES_PASSWORD}@db:5432/sbl
+      DOCS_DIR: /app/data/docs
+    volumes:
+      - docs:/app/data   # documentos cifrados persistem entre deploys
 
   caddy:
     image: caddy:2-alpine
@@ -43,6 +46,7 @@ services:
       - caddy_config:/config
 
 volumes:
+  docs:
   pgdata:
   caddy_data:
   caddy_config:

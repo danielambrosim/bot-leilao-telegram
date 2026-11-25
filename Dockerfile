@@ -15,6 +15,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY db ./db
+# Pasta de documentos precisa pertencer ao usuário sem privilégios (senão EACCES ao salvar)
+RUN mkdir -p /app/data/docs && chown -R node:node /app/data && chmod 700 /app/data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
