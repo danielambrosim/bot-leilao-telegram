@@ -8,9 +8,13 @@ Custo: R$ 0. Limite: o serviço dorme após 15 min sem tráfego e leva ~1 min pa
 
 | Serviço | O que criar | Anotar |
 |---|---|---|
-| [Neon](https://neon.tech) | Projeto na região **AWS us-east-1** | Connection string (`postgresql://...?sslmode=require`) |
-| [Cloudflare R2](https://developers.cloudflare.com/r2/) *(pede cartão, 10 GB grátis)* ou [Backblaze B2](https://www.backblaze.com/cloud-storage) | Bucket **privado** `sbl-docs` + chave de API só para esse bucket | Endpoint S3, região, bucket, access key, secret |
-| [Resend](https://resend.com) ou [Brevo](https://www.brevo.com) | Conta + SMTP | Host, porta, usuário, senha, remetente |
+| [Neon](https://neon.tech) | Projeto na região **AWS us-east-1** com **Postgres + Object storage** (bucket privado `sbl-docs`) | Connection string (`postgresql://...?sslmode=require`) e, em Connect > Storage, endpoint/região/chaves S3 |
+| [Brevo](https://www.brevo.com) *(recomendado: não exige domínio)* | Conta + remetente verificado + chave SMTP | `smtp-relay.brevo.com`, porta 587, login SMTP, chave SMTP, e-mail remetente |
+
+Alternativas: bucket no Cloudflare R2 (pede cartão) ou Backblaze B2; e-mail pelo Resend (só envia para qualquer pessoa depois de verificar um domínio próprio).
+
+Neon Object Storage → variáveis do app:
+`S3_ENDPOINT` = `AWS_ENDPOINT_URL_S3` · `S3_REGION` = `AWS_REGION` · `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` = credencial com escopo storage · `S3_BUCKET` = `sbl-docs`
 | [Render](https://render.com) | Conta conectada ao GitHub | — |
 
 Endpoints S3 comuns:
