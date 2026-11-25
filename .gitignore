@@ -11,3 +11,6 @@ coverage/
 *.csv
 data/
 exports/
+
+# Auditoria local (provas de conceito, caminhos da máquina) — não publicar
+audit/

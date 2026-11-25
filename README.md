@@ -5,7 +5,7 @@ Bot compartilhado para **leiloeiros (B2B)**. O arrematante abre o link do leiloe
 consentimento próprio. O leiloeiro aprova ou recusa no painel.
 
 > **Status: v2 em reescrita (fase 2 de 6).** O código da v1 está em `legacy/src-v1` apenas como referência.
-> A auditoria de segurança da v1 está em [`audit/RELATORIO_ATAQUE.md`](audit/RELATORIO_ATAQUE.md).
+> A auditoria de segurança da v1 (57 achados) é mantida fora do repositório.
 
 ## Roadmap
 
