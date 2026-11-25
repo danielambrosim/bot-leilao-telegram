@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts"
+    "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts",
+    "exportar:habilitados": "tsx src/scripts/exportarHabilitados.ts"
   },
   "repository": {
     "type": "git",

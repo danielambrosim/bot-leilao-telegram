@@ -11,7 +11,9 @@ import { createLocalDocStore } from '../src/docs/store';
 import { createPublicacaoRepo } from '../src/publicacoes/repo';
 import { createPgSessionStorage } from '../src/bot/sessionStorage';
 import { MSG, type SessionData } from '../src/bot/createBot';
-import { botao, foto, montarBot, pdf, texto, textosEnviados } from './helpers/botHarness';
+import { botao, contato, foto, montarBot, pdf, texto, textosEnviados } from './helpers/botHarness';
+import type { BuscarCep } from '../src/util/endereco';
+import { buscarHabilitados, gerarCsv } from '../src/exportacao/habilitados';
 
 // Fluxo completo do bot contra Postgres real. Requer TEST_DATABASE_URL (ver README).
 const url = process.env.TEST_DATABASE_URL;
@@ -21,6 +23,12 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
   const pool = createPool(url!);
   let dirDocs: string;
   let ultimoCodigo = '';
+  const cepFake: BuscarCep = async (cep) =>
+    cep === '29015000'
+      ? { logradouro: 'Rua Sete de Setembro', bairro: 'Centro', cidade: 'Vitória', uf: 'ES' }
+      : cep === '29900000'
+        ? { logradouro: '', bairro: '', cidade: 'Linhares', uf: 'ES' }
+        : null;
 
   const montar = () => {
     const docs = createLocalDocStore(dirDocs, CHAVE);
@@ -35,6 +43,7 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
         publicacoes: createPublicacaoRepo(pool),
         sessionStorage: createPgSessionStorage<SessionData>(pool),
         baixarArquivo: async (_api, fileId) => Buffer.from(`conteudo-${fileId}`),
+        buscarCep: cepFake,
       }),
     };
   };
@@ -61,7 +70,10 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto(ultimoCodigo, chat));
     await bot.handleUpdate(texto('529.982.247-25', chat));
     await bot.handleUpdate(botao('cnpj:nao', chat));
-    await bot.handleUpdate(texto('Rua das Flores, 100, Centro, Vitória/ES, 29000-000', chat));
+    await bot.handleUpdate(texto('1234567 sptc/es', chat));
+    await bot.handleUpdate(contato(chat));
+    await bot.handleUpdate(texto('29015-000', chat));
+    await bot.handleUpdate(texto('412, apto 301', chat));
     await bot.handleUpdate(foto(chat));
     await bot.handleUpdate(pdf(chat));
     await bot.handleUpdate(botao('confirmar:sim', chat));
@@ -73,7 +85,12 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
 
     expect(textosEnviados(chamadas).at(-1)).toContain('Cadastro concluído e enviado para Colodete Leilões');
     const { rows: [a] } = await pool.query('SELECT * FROM arrematantes');
-    expect(a).toMatchObject({ nome: 'Maria da Silva', email: 'maria@exemplo.com', cpf: '52998224725' });
+    expect(a).toMatchObject({
+      nome: 'Maria da Silva', email: 'maria@exemplo.com', cpf: '52998224725', rg_ie: '1234567 SPTC/ES',
+      celular: '5527999887766', cep: '29015000', logradouro: 'Rua Sete de Setembro', numero: '412',
+      complemento: 'apto 301', bairro: 'Centro', cidade: 'Vitória', uf: 'ES',
+      endereco: 'Rua Sete de Setembro, 412 - apto 301, Centro, Vitória/ES, CEP 29015-000',
+    });
     expect(a.email_verificado_em).not.toBeNull();
 
     const { rows: d } = await pool.query('SELECT tipo, r2_key, mime FROM documentos ORDER BY tipo');
@@ -189,7 +206,10 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto(ultimoCodigo));
     await bot.handleUpdate(texto('52998224725'));
     await bot.handleUpdate(botao('cnpj:nao'));
-    await bot.handleUpdate(texto('Rua das Flores, 100, Centro, Vitória/ES'));
+    await bot.handleUpdate(texto('1234567 SPTC/ES'));
+    await bot.handleUpdate(texto('27 99988-7766'));
+    await bot.handleUpdate(texto('29015000'));
+    await bot.handleUpdate(texto('S/N'));
     await bot.handleUpdate(pdf(42, 'application/x-msdownload'));
     await bot.handleUpdate(pdf(42, 'application/pdf', 50 * 1024 * 1024));
     expect(textosEnviados(chamadas).slice(-2)).toEqual([MSG.arquivoInvalido, MSG.arquivoInvalido]);
@@ -240,5 +260,77 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     expect(noticias).toContain('17/11/2026');
     expect(noticias).toContain('&lt;592&gt;');
     expect(noticias).toContain('Edição Vol. 1, N. 3');
+  });
+
+  async function ateCelular(bot: ReturnType<typeof montar>['bot'], chat = 42) {
+    await bot.handleUpdate(texto('/start colodete', chat));
+    await bot.handleUpdate(botao('termo:aceito', chat));
+    await bot.handleUpdate(texto('Maria da Silva', chat));
+    await bot.handleUpdate(texto('maria@exemplo.com', chat));
+    await bot.handleUpdate(texto(ultimoCodigo, chat));
+    await bot.handleUpdate(texto('52998224725', chat));
+    await bot.handleUpdate(botao('cnpj:nao', chat));
+    await bot.handleUpdate(texto('1234567 SPTC/ES', chat));
+  }
+
+  it('celular: recusa contato de outra pessoa e número inválido', async () => {
+    const { bot, chamadas } = montar();
+    await ateCelular(bot);
+    await bot.handleUpdate(contato(42, '+55 27 99999-0000', 999));
+    await bot.handleUpdate(texto('1234'));
+    expect(textosEnviados(chamadas).slice(-2)).toEqual([MSG.celularDeOutro, MSG.celularInvalido]);
+  });
+
+  it('CEP não encontrado: pede cidade/UF, rua e bairro manualmente', async () => {
+    const { bot, chamadas } = montar();
+    await ateCelular(bot);
+    await bot.handleUpdate(texto('27 99988-7766'));
+    await bot.handleUpdate(texto('01001-000'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.cepNaoEncontrado);
+    await bot.handleUpdate(texto('Vitória ES'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.cidadeUfInvalida);
+    await bot.handleUpdate(texto('Serra/es'));
+    await bot.handleUpdate(texto('Rua sem bairro'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.logradouroInvalido);
+    await bot.handleUpdate(texto('Rua das Acácias, Laranjeiras'));
+    await bot.handleUpdate(texto('abc'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.numeroInvalido);
+    await bot.handleUpdate(texto('15B'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirIdentidade);
+  });
+
+  it('CEP geral de cidade: pede só rua e bairro', async () => {
+    const { bot, chamadas } = montar();
+    await ateCelular(bot);
+    await bot.handleUpdate(texto('27 99988-7766'));
+    await bot.handleUpdate(texto('29900-000'));
+    expect(textosEnviados(chamadas).at(-1)).toContain('CEP de Linhares/ES');
+  });
+
+  it('pessoa jurídica pede CNPJ e Inscrição Estadual', async () => {
+    const { bot, chamadas } = montar();
+    await bot.handleUpdate(texto('/start colodete'));
+    await bot.handleUpdate(botao('termo:aceito'));
+    await bot.handleUpdate(texto('Maria da Silva'));
+    await bot.handleUpdate(texto('maria@exemplo.com'));
+    await bot.handleUpdate(texto(ultimoCodigo));
+    await bot.handleUpdate(texto('52998224725'));
+    await bot.handleUpdate(botao('cnpj:sim'));
+    await bot.handleUpdate(texto('11.222.333/0001-81'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirIe);
+    await bot.handleUpdate(texto('isento'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirCelular);
+  });
+
+  it('exportação: CSV do leiloeiro só com os dele, filtrado por status', async () => {
+    const { bot } = montar();
+    await cadastroCompleto(bot);
+
+    expect((await buscarHabilitados(pool, 'colodete', 'aprovado')).linhas).toHaveLength(0);
+    expect((await buscarHabilitados(pool, 'outro', 'todos')).linhas).toHaveLength(0);
+    const { linhas } = await buscarHabilitados(pool, 'colodete', 'pendente');
+    const csv = gerarCsv(linhas);
+    expect(csv.split('\r\n')[1]).toContain('Maria da Silva;Física;529.982.247-25;1234567 SPTC/ES;maria@exemplo.com;(27) 99988-7766;29015-000');
+    await expect(buscarHabilitados(pool, 'naoexiste', 'todos')).rejects.toThrow(/não encontrado/);
   });
 });

@@ -107,6 +107,19 @@ export function pdf(chatId = 42, mime = 'application/pdf', tamanho = 50_000): Up
   } as Update;
 }
 
+export function contato(chatId = 42, telefone = '+55 27 99988-7766', donoId = chatId): Update {
+  return {
+    update_id: ++updateId,
+    message: {
+      message_id: updateId,
+      date: 0,
+      chat: chatPrivado(chatId),
+      from: { id: chatId, is_bot: false, first_name: 'A' },
+      contact: { phone_number: telefone, first_name: 'A', user_id: donoId },
+    },
+  } as Update;
+}
+
 export function botao(data: string, chatId = 42): Update {
   return {
     update_id: ++updateId,

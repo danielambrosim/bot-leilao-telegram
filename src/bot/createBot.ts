@@ -26,6 +26,14 @@ import type { PublicacaoRepo } from '../publicacoes/repo';
 import { FONTE as FONTE_IMPRENSA } from '../scraper/imprensaLeiloes';
 import { mascararCPF, somenteDigitos, validarCNPJ, validarCPF, validarEmail } from '../util/documentosBr';
 import { escapeHtml, parseStartPayload } from './startPayload';
+import {
+  createViaCep,
+  formatarEndereco,
+  normalizarCelular,
+  parseCidadeUf,
+  parseNumeroComplemento,
+  type BuscarCep,
+} from '../util/endereco';
 
 // ---------- Sessão ----------
 
@@ -37,7 +45,12 @@ type Etapa =
   | 'cpf'
   | 'cnpj_pergunta'
   | 'cnpj'
-  | 'endereco'
+  | 'rg_ie'
+  | 'celular'
+  | 'cep'
+  | 'cidade_uf'
+  | 'logradouro'
+  | 'numero'
   | 'doc_identidade'
   | 'doc_comprovante'
   | 'confirmar'
@@ -56,6 +69,15 @@ export interface Fluxo {
     email?: string;
     cpf?: string;
     cnpj?: string;
+    rgIe?: string;
+    celular?: string;
+    cep?: string;
+    logradouro?: string;
+    bairro?: string;
+    cidade?: string;
+    uf?: string;
+    numero?: string;
+    complemento?: string | null;
     endereco?: string;
     identidade?: DocPendente;
     comprovante?: DocPendente;
@@ -82,6 +104,7 @@ export interface BotDeps {
   publicacoes: PublicacaoRepo;
   sessionStorage?: StorageAdapter<SessionData>;
   baixarArquivo?: BaixarArquivo;
+  buscarCep?: BuscarCep;
   /** Usado em testes para não chamar getMe na API do Telegram */
   botConfig?: BotConfig<BotContext>;
 }
@@ -143,8 +166,20 @@ export const MSG = {
   perguntaCnpj: 'Vai arrematar em nome de empresa (CNPJ)?',
   pedirCnpj: 'Informe o CNPJ:',
   cnpjInvalido: 'CNPJ inválido. Digite novamente:',
-  pedirEndereco: 'Informe seu endereço completo (rua, número, bairro, cidade/UF, CEP):',
-  enderecoInvalido: 'Endereço muito curto. Informe rua, número, bairro, cidade/UF e CEP:',
+  pedirRg: 'Informe o número do seu RG com órgão emissor e UF (ex.: 1234567 SPTC/ES):',
+  pedirIe: 'Informe a Inscrição Estadual da empresa (ou digite ISENTO):',
+  rgInvalido: 'Informe o número do documento (entre 4 e 30 caracteres):',
+  pedirCelular: 'Toque no botão abaixo para compartilhar seu celular (ou digite com DDD, ex.: 27 99999-8888).',
+  celularInvalido: 'Celular inválido. Use o botão ou digite com DDD (ex.: 27 99999-8888).',
+  celularDeOutro: 'Compartilhe o seu próprio número, não o de um contato.',
+  pedirCep: 'Qual é o CEP do seu endereço? (8 números)',
+  cepInvalido: 'CEP inválido. Digite os 8 números:',
+  cepNaoEncontrado: 'Não encontrei esse CEP automaticamente. Informe a cidade e UF (ex.: Vitória/ES):',
+  cidadeUfInvalida: 'Use o formato Cidade/UF (ex.: Vila Velha/ES):',
+  pedirLogradouro: 'Informe a rua e o bairro, separados por vírgula (ex.: Rua Sete de Setembro, Centro):',
+  logradouroInvalido: 'Informe a rua e o bairro separados por vírgula (ex.: Av. Jerônimo Monteiro, Centro):',
+  pedirNumero: 'Informe o número e o complemento, se houver (ex.: 412, apto 301 — ou S/N):',
+  numeroInvalido: 'Informe o número (ou S/N) e, se houver, o complemento após a vírgula (ex.: 412, apto 301):',
   pedirIdentidade: 'Envie uma foto (ou PDF) do seu documento de identidade com foto (RG ou CNH).',
   pedirComprovante: 'Documento recebido ✅\n\nAgora envie uma foto (ou PDF) do comprovante de residência.',
   arquivoInvalido: 'Envie uma foto ou um arquivo JPG, PNG ou PDF de até 10 MB.',
@@ -170,6 +205,8 @@ const STATUS_LABEL: Record<StatusHabilitacao, string> = {
 export function createBot(deps: BotDeps): Bot<BotContext> {
   const bot = new Bot<BotContext>(deps.token, deps.botConfig);
   const baixar = deps.baixarArquivo ?? baixarViaTelegram(deps.token);
+  const buscarCep = deps.buscarCep ?? createViaCep();
+  const tecladoCelular = new Keyboard().requestContact('📱 Compartilhar meu celular').resized().oneTime();
 
   // errorBoundary vale para polling E webhook (bot.catch só cobre polling).
   // Sem isso, um erro vira HTTP 500 no webhook e o Telegram reenvia o update em loop.
@@ -285,8 +322,8 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
     }
 
     if (grupo === 'cnpj') {
-      fluxo.etapa = acao === 'sim' ? 'cnpj' : 'endereco';
-      return void (await ctx.reply(acao === 'sim' ? MSG.pedirCnpj : MSG.pedirEndereco));
+      fluxo.etapa = acao === 'sim' ? 'cnpj' : 'rg_ie';
+      return void (await ctx.reply(acao === 'sim' ? MSG.pedirCnpj : MSG.pedirRg));
     }
 
     if (grupo === 'excluir') {
@@ -324,7 +361,23 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
         salvos.push({ tipo, chave: s.chave, sha256: s.sha256, mime: doc.mime, tamanhoBytes: s.tamanhoBytes });
       }
       await deps.arrematantes.criarComHabilitacao(
-        { telegramChatId: chatId, nome: d.nome!, email: d.email!, cpf: d.cpf!, cnpj: d.cnpj, endereco: d.endereco! },
+        {
+          telegramChatId: chatId,
+          nome: d.nome!,
+          email: d.email!,
+          cpf: d.cpf!,
+          cnpj: d.cnpj,
+          rgIe: d.rgIe!,
+          celular: d.celular!,
+          cep: d.cep!,
+          logradouro: d.logradouro!,
+          numero: d.numero!,
+          complemento: d.complemento,
+          bairro: d.bairro!,
+          cidade: d.cidade!,
+          uf: d.uf!,
+          endereco: d.endereco!,
+        },
         salvos,
         l.id,
         l.termoVersao,
@@ -345,6 +398,22 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
         'Para se habilitar em outro leiloeiro parceiro, basta abrir o link dele — sem preencher tudo de novo.',
     );
   }
+
+  // ----- Celular via botão "compartilhar contato" (número verificado pelo Telegram) -----
+
+  privado.on('message:contact', async (ctx, next) => {
+    const fluxo = ctx.session.fluxo;
+    if (fluxo?.etapa !== 'celular') return next();
+    const contato = ctx.message.contact;
+    if (contato.user_id !== ctx.from.id) {
+      return void (await ctx.reply(MSG.celularDeOutro, { reply_markup: tecladoCelular }));
+    }
+    const celular = normalizarCelular(contato.phone_number);
+    if (!celular) return void (await ctx.reply(MSG.celularInvalido, { reply_markup: tecladoCelular }));
+    fluxo.dados.celular = celular;
+    fluxo.etapa = 'cep';
+    await ctx.reply(MSG.pedirCep, { reply_markup: { remove_keyboard: true } });
+  });
 
   // ----- Documentos (foto ou arquivo) -----
 
@@ -373,7 +442,8 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
       '<b>Confira seus dados</b>\n\n' +
         `Nome: ${escapeHtml(d.nome!)}\nE-mail: ${escapeHtml(d.email!)}\nCPF: ${mascararCPF(d.cpf!)}\n` +
         (d.cnpj ? `CNPJ: ${d.cnpj}\n` : '') +
-        `Endereço: ${escapeHtml(d.endereco!)}\nDocumentos: identidade ✅ comprovante ✅\n\n` +
+        `${d.cnpj ? 'IE' : 'RG'}: ${escapeHtml(d.rgIe!)}\nCelular: +${d.celular}\n` +
+        `Endereço:${escapeHtml(d.endereco!)}\nDocumentos: identidade ✅ comprovante ✅\n\n` +
         `Enviar para <b>${escapeHtml(fluxo.leiloeiro!.nome)}</b>?`,
       {
         parse_mode: 'HTML',
@@ -451,13 +521,78 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
       case 'cnpj': {
         if (!validarCNPJ(texto)) return void (await ctx.reply(MSG.cnpjInvalido));
         d.cnpj = somenteDigitos(texto);
-        fluxo.etapa = 'endereco';
-        return void (await ctx.reply(MSG.pedirEndereco));
+        fluxo.etapa = 'rg_ie';
+        return void (await ctx.reply(MSG.pedirIe));
       }
-      case 'endereco': {
-        const endereco = texto.replace(/\s+/g, ' ');
-        if (endereco.length < 15 || endereco.length > 300) return void (await ctx.reply(MSG.enderecoInvalido));
-        d.endereco = endereco;
+      case 'rg_ie': {
+        const doc = texto.replace(/\s+/g, ' ').toUpperCase();
+        if (doc.length < 4 || doc.length > 30 || !/\d|^ISENTO$/.test(doc)) return void (await ctx.reply(MSG.rgInvalido));
+        d.rgIe = doc;
+        fluxo.etapa = 'celular';
+        return void (await ctx.reply(MSG.pedirCelular, { reply_markup: tecladoCelular }));
+      }
+      case 'celular': {
+        const celular = normalizarCelular(texto);
+        if (!celular) return void (await ctx.reply(MSG.celularInvalido, { reply_markup: tecladoCelular }));
+        d.celular = celular;
+        fluxo.etapa = 'cep';
+        return void (await ctx.reply(MSG.pedirCep, { reply_markup: { remove_keyboard: true } }));
+      }
+      case 'cep': {
+        const cep = somenteDigitos(texto);
+        if (cep.length !== 8) return void (await ctx.reply(MSG.cepInvalido));
+        d.cep = cep;
+        const end = await buscarCep(cep);
+        if (!end) {
+          fluxo.etapa = 'cidade_uf';
+          return void (await ctx.reply(MSG.cepNaoEncontrado));
+        }
+        d.cidade = end.cidade;
+        d.uf = end.uf;
+        if (!end.logradouro || !end.bairro) {
+          // CEP geral de cidade pequena: rua e bairro vêm do usuário
+          fluxo.etapa = 'logradouro';
+          return void (await ctx.reply(`CEP de ${end.cidade}/${end.uf}. ${MSG.pedirLogradouro}`));
+        }
+        d.logradouro = end.logradouro;
+        d.bairro = end.bairro;
+        fluxo.etapa = 'numero';
+        return void (await ctx.reply(`📍 ${end.logradouro}, ${end.bairro}, ${end.cidade}/${end.uf}\n\n${MSG.pedirNumero}`));
+      }
+      case 'cidade_uf': {
+        const cu = parseCidadeUf(texto);
+        if (!cu) return void (await ctx.reply(MSG.cidadeUfInvalida));
+        d.cidade = cu.cidade;
+        d.uf = cu.uf;
+        fluxo.etapa = 'logradouro';
+        return void (await ctx.reply(MSG.pedirLogradouro));
+      }
+      case 'logradouro': {
+        const partes = texto.split(',').map((p) => p.replace(/\s+/g, ' ').trim());
+        const bairro = partes.length > 1 ? partes.pop()! : '';
+        const logradouro = partes.join(', ');
+        if (logradouro.length < 4 || logradouro.length > 120 || bairro.length < 2 || bairro.length > 60) {
+          return void (await ctx.reply(MSG.logradouroInvalido));
+        }
+        d.logradouro = logradouro;
+        d.bairro = bairro;
+        fluxo.etapa = 'numero';
+        return void (await ctx.reply(MSG.pedirNumero));
+      }
+      case 'numero': {
+        const nc = parseNumeroComplemento(texto);
+        if (!nc) return void (await ctx.reply(MSG.numeroInvalido));
+        d.numero = nc.numero;
+        d.complemento = nc.complemento;
+        d.endereco = formatarEndereco({
+          logradouro: d.logradouro!,
+          numero: nc.numero,
+          complemento: nc.complemento,
+          bairro: d.bairro!,
+          cidade: d.cidade!,
+          uf: d.uf!,
+          cep: d.cep!,
+        });
         fluxo.etapa = 'doc_identidade';
         return void (await ctx.reply(MSG.pedirIdentidade));
       }

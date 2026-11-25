@@ -19,6 +19,16 @@ export interface NovoArrematante {
   email: string;
   cpf: string;
   cnpj?: string;
+  rgIe: string;
+  celular: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento?: string | null;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  /** Endereço completo em uma linha (exibição) */
   endereco: string;
 }
 
@@ -98,9 +108,14 @@ export function createArrematanteRepo(pool: Pool): ArrematanteRepo {
       try {
         await client.query('BEGIN');
         const { rows } = await client.query<{ id: number }>(
-          `INSERT INTO arrematantes (telegram_chat_id, nome, email, email_verificado_em, cpf, cnpj, endereco)
-           VALUES ($1, $2, $3, now(), $4, $5, $6) RETURNING id::int AS id`,
-          [dados.telegramChatId, dados.nome, dados.email, dados.cpf, dados.cnpj ?? null, dados.endereco],
+          `INSERT INTO arrematantes (telegram_chat_id, nome, email, email_verificado_em, cpf, cnpj, endereco,
+                                     rg_ie, celular, cep, logradouro, numero, complemento, bairro, cidade, uf)
+           VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id::int AS id`,
+          [
+            dados.telegramChatId, dados.nome, dados.email, dados.cpf, dados.cnpj ?? null, dados.endereco,
+            dados.rgIe, dados.celular, dados.cep, dados.logradouro, dados.numero, dados.complemento ?? null,
+            dados.bairro, dados.cidade, dados.uf,
+          ],
         );
         const id = rows[0]!.id;
         for (const d of documentos) {

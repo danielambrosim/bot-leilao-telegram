@@ -28,6 +28,7 @@ services:
       BOT_MODE: webhook
       DATABASE_URL: postgres://sbl:${POSTGRES_PASSWORD}@db:5432/sbl
       DOCS_DIR: /app/data/docs
+      EXPORTS_DIR: /app/data/exports
     volumes:
       - docs:/app/data   # documentos cifrados persistem entre deploys
 
