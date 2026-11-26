@@ -3,6 +3,7 @@ import type { Update } from 'grammy/types';
 import { createBot, type BotContext, type BotDeps } from '../../src/bot/createBot';
 import type { ArrematanteRepo } from '../../src/arrematantes/repo';
 import type { DocStore } from '../../src/docs/store';
+import type { LeiloeiroRepo } from '../../src/leiloeiros/repo';
 
 export const botInfo = {
   id: 1,
@@ -40,8 +41,13 @@ export const docsFake: DocStore = {
 };
 
 /** Cria bot com a API do Telegram interceptada (nenhuma requisição real). */
-export function montarBot(deps: Partial<BotDeps> & Pick<BotDeps, 'leiloeiros'>) {
+export function montarBot(
+  deps: Omit<Partial<BotDeps>, 'leiloeiros'> & {
+    leiloeiros: Pick<LeiloeiroRepo, 'findAtivoPorSlug'> & Partial<LeiloeiroRepo>;
+  },
+) {
   const chamadas: Chamada[] = [];
+  const leiloeiros: LeiloeiroRepo = { listarAtivos: async () => [], ...deps.leiloeiros };
   const bot = createBot({
     token: '1:x',
     arrematantes: arrematantesVazio,
@@ -52,6 +58,7 @@ export function montarBot(deps: Partial<BotDeps> & Pick<BotDeps, 'leiloeiros'>) 
     baixarArquivo: async () => Buffer.from('arquivo'),
     botConfig: { botInfo },
     ...deps,
+    leiloeiros,
   });
   bot.api.config.use(async (_prev, method, payload) => {
     chamadas.push({ method, payload });

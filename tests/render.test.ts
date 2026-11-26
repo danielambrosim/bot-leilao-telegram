@@ -115,3 +115,36 @@ describe.skipIf(!s3url)('DocStore S3 (servidor S3 local)', () => {
     await expect(store.ler('../segredo')).rejects.toThrow(/inválida/);
   });
 });
+
+describe('env tolerante a valores colados com aspas/espaços (erro real do Render)', () => {
+  it('remove aspas e espaços das pontas', () => {
+    const env = loadEnv({
+      DATABASE_URL: ' "postgres://u:p@h/db" ',
+      TELEGRAM_TOKEN: '123456789:AAEexampleexampleexampleexample_-12',
+      APP_SECRET: "'" + 's'.repeat(40) + "'",
+      DOCS_ENCRYPTION_KEY: Buffer.alloc(32).toString('base64'),
+      DOCS_STORAGE: 's3',
+      S3_ENDPOINT: '"https://br-x.storage.c-15.us-east-1.aws.neon.tech"',
+      S3_REGION: '"us-east-1"',
+      S3_BUCKET: 'sbl-docs',
+      S3_ACCESS_KEY_ID: '"nak_x"',
+      S3_SECRET_ACCESS_KEY: '"nsk_y"',
+    });
+    expect(env.S3_ENDPOINT).toBe('https://br-x.storage.c-15.us-east-1.aws.neon.tech');
+    expect(env.S3_REGION).toBe('us-east-1');
+    expect(env.S3_ACCESS_KEY_ID).toBe('nak_x');
+  });
+
+  it('produção aceita Resend por API sem SMTP_HOST', () => {
+    const base = {
+      DATABASE_URL: 'postgres://u:p@h/db',
+      TELEGRAM_TOKEN: '123456789:AAEexampleexampleexampleexample_-12',
+      APP_SECRET: 's'.repeat(40),
+      DOCS_ENCRYPTION_KEY: Buffer.alloc(32).toString('base64'),
+      NODE_ENV: 'production',
+      MAIL_FROM: 'a@b.com',
+    };
+    expect(() => loadEnv(base)).toThrow(/SMTP_HOST ou RESEND_API_KEY/);
+    expect(loadEnv({ ...base, RESEND_API_KEY: 're_abc' }).RESEND_API_KEY).toBe('re_abc');
+  });
+});

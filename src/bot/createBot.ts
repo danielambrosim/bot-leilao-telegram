@@ -130,17 +130,29 @@ function baixarViaTelegram(token: string): BaixarArquivo {
 // ---------- Textos ----------
 
 export const BOTOES = {
+  habilitar: '🏛️ Escolher leiloeiro',
   status: '📊 Meu status',
   noticias: '📰 Notícias de leilões',
   ajuda: 'ℹ️ Ajuda',
 } as const;
 
-export const MENU = new Keyboard().text(BOTOES.status).text(BOTOES.noticias).row().text(BOTOES.ajuda).resized().persistent();
+export const MENU = new Keyboard()
+  .text(BOTOES.habilitar)
+  .row()
+  .text(BOTOES.status)
+  .text(BOTOES.noticias)
+  .row()
+  .text(BOTOES.ajuda)
+  .resized()
+  .persistent();
 
 export const MSG = {
   semLeiloeiro:
     'Olá! Este bot faz a habilitação de arrematantes para leiloeiros parceiros.\n\n' +
-    'Para começar, abra o link de habilitação enviado pelo seu leiloeiro.',
+    `Toque em "${BOTOES.habilitar}" para escolher onde quer se habilitar, ` +
+    'ou abra o link enviado pelo seu leiloeiro.',
+  escolherLeiloeiro: 'Em qual leiloeiro você quer se habilitar?',
+  semLeiloeirosAtivos: 'Nenhum leiloeiro está recebendo habilitações pelo bot no momento.',
   leiloeiroInvalido: 'Não encontrei esse leiloeiro ou o link expirou. Peça um novo link de habilitação ao leiloeiro.',
   ajuda:
     'Como funciona:\n' +
@@ -232,15 +244,10 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
 
   // ----- Comandos -----
 
-  privado.command('start', async (ctx) => {
+  /** Início da habilitação em um leiloeiro (link ?start=<slug> ou botão "Escolher leiloeiro"). */
+  async function iniciarHabilitacao(ctx: BotContext, slug: string) {
     ctx.session.fluxo = undefined;
-    const slug = parseStartPayload(ctx.match);
-    const arrematante = await deps.arrematantes.buscarPorChat(ctx.chat.id);
-
-    if (!slug) {
-      await mostrarMenu(ctx, arrematante ? `Olá, ${arrematante.nome.split(' ')[0]}! Escolha uma opção.` : MSG.semLeiloeiro);
-      return;
-    }
+    const arrematante = await deps.arrematantes.buscarPorChat(ctx.chat!.id);
     const leiloeiro = await deps.leiloeiros.findAtivoPorSlug(slug);
     if (!leiloeiro) {
       await ctx.reply(MSG.leiloeiroInvalido);
@@ -266,6 +273,31 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
         reply_markup: new InlineKeyboard().text('✅ Aceito', 'termo:aceito').text('❌ Não aceito', 'termo:recusado'),
       },
     );
+  }
+
+  privado.command('start', async (ctx) => {
+    // Aceita "/start colodete" digitado à mão ou vindo do link (payload)
+    const slug = parseStartPayload(ctx.match);
+    if (slug) return void (await iniciarHabilitacao(ctx, slug));
+    ctx.session.fluxo = undefined;
+    const arrematante = await deps.arrematantes.buscarPorChat(ctx.chat.id);
+    await mostrarMenu(ctx, arrematante ? `Olá, ${arrematante.nome.split(' ')[0]}! Escolha uma opção.` : MSG.semLeiloeiro);
+  });
+
+  // Botão do menu: lista os leiloeiros ativos como botões
+  privado.hears(BOTOES.habilitar, async (ctx, next) => {
+    if (ctx.session.fluxo && ctx.session.fluxo.etapa !== 'termo') return next(); // no meio do cadastro: tratado abaixo
+    const lista = await deps.leiloeiros.listarAtivos();
+    if (!lista.length) return void (await mostrarMenu(ctx, MSG.semLeiloeirosAtivos));
+    const teclado = new InlineKeyboard();
+    for (const l of lista) teclado.text(l.nome, `lei:${l.slug}`).row();
+    await ctx.reply(MSG.escolherLeiloeiro, { reply_markup: teclado });
+  });
+
+  privado.callbackQuery(/^lei:([a-z0-9_-]{3,40})$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageReplyMarkup().catch(() => undefined);
+    await iniciarHabilitacao(ctx, ctx.match[1]!);
   });
 
   privado.command('cancelar', async (ctx) => {
@@ -630,7 +662,16 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
 
   privado.hears(BOTOES.ajuda, (ctx) => mostrarMenu(ctx, MSG.ajuda));
 
-  privado.on('message', (ctx) => mostrarMenu(ctx, MSG.ajuda));
+  // Mensagem solta ("Olá"): orienta o caminho em vez de repetir a ajuda
+  privado.on('message', async (ctx) => {
+    const arrematante = await deps.arrematantes.buscarPorChat(ctx.chat.id);
+    await mostrarMenu(
+      ctx,
+      arrematante
+        ? `Olá, ${arrematante.nome.split(' ')[0]}! Use o menu abaixo. Para se habilitar em outro leiloeiro, toque em "${BOTOES.habilitar}".`
+        : MSG.semLeiloeiro,
+    );
+  });
 
   return bot;
 }

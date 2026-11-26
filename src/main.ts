@@ -73,7 +73,16 @@ async function main() {
       console.log(`Webhook registrado em ${url}`);
     }
   } else {
-    // Polling: desenvolvimento local ou piloto em máquina própria; remove webhook antigo para não conflitar
+    // Polling: desenvolvimento local ou piloto em máquina própria.
+    // Trava: se outra instância (produção) já usa webhook com este token, NÃO o apaga — derrubaria a produção.
+    const atual = await bot.api.getWebhookInfo();
+    if (atual.url && process.env.FORCE_POLLING !== 'true') {
+      console.error(
+        `Este token já está em uso por webhook (${new URL(atual.url).host}). ` +
+          'Polling cancelado para não derrubar a produção. Use outro token (bot de teste) ou FORCE_POLLING=true.',
+      );
+      process.exit(1);
+    }
     await bot.api.deleteWebhook();
     void bot.start({ onStart: (me) => console.log(`Bot @${me.username} em polling`) });
   }

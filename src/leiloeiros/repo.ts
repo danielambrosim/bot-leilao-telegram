@@ -10,6 +10,8 @@ export interface Leiloeiro {
 
 export interface LeiloeiroRepo {
   findAtivoPorSlug(slug: string): Promise<Leiloeiro | null>;
+  /** Leiloeiros que aceitam habilitação pelo bot (botão "Escolher leiloeiro") */
+  listarAtivos(): Promise<Array<Pick<Leiloeiro, 'slug' | 'nome'>>>;
 }
 
 export function createLeiloeiroRepo(pool: Pool): LeiloeiroRepo {
@@ -21,6 +23,12 @@ export function createLeiloeiroRepo(pool: Pool): LeiloeiroRepo {
         [slug],
       );
       return rows[0] ?? null;
+    },
+    async listarAtivos() {
+      const { rows } = await pool.query<{ slug: string; nome: string }>(
+        'SELECT slug, nome FROM leiloeiros WHERE ativo ORDER BY nome LIMIT 50',
+      );
+      return rows;
     },
   };
 }

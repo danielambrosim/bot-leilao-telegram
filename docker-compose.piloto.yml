@@ -6,7 +6,7 @@ name: sbl-piloto
 services:
   db:
     image: postgres:17-alpine
-    restart: unless-stopped
+    restart: "no"   # piloto não religa sozinho com o Docker (evita disputar o token com a produção)
     environment:
       POSTGRES_DB: sbl
       POSTGRES_USER: sbl
@@ -21,7 +21,7 @@ services:
 
   app:
     build: .
-    restart: unless-stopped
+    restart: "no"   # piloto não religa sozinho com o Docker (evita disputar o token com a produção)
     depends_on:
       db:
         condition: service_healthy
