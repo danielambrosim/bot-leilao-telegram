@@ -40,6 +40,7 @@ export interface Operador {
   leiloeiro_slug: string;
   email: string;
   papel: 'dono' | 'operador';
+  nome: string | null;
 }
 
 export type ResultadoLogin =
@@ -48,7 +49,7 @@ export type ResultadoLogin =
 
 const SELECT_OPERADOR = `
   SELECT o.id::int AS id, o.leiloeiro_id::int AS leiloeiro_id, l.nome AS leiloeiro_nome, l.slug AS leiloeiro_slug,
-         o.email::text AS email, o.papel
+         o.email::text AS email, o.papel, o.nome
     FROM operadores o JOIN leiloeiros l ON l.id = o.leiloeiro_id`;
 
 export function createAuthPainel(pool: Pool) {

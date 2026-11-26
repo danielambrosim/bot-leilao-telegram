@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Painel de Habilitação</title>
+  <title>Painel do leiloeiro</title>
   <link rel="stylesheet" href="/painel/static/app.css">
   <script src="/painel/static/app.js" defer></script>
 </head>
@@ -12,58 +12,64 @@
   <!-- Login -->
   <main id="tela-login" class="login" hidden>
     <form id="form-login" class="login-card" autocomplete="on">
-      <div class="brand">
-        <div class="gavel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.6 2.3l7.1 7.1-2.8 2.8-1.4-1.4-2.8 2.8 5.7 5.7-2.1 2.1-5.7-5.7-2.8 2.8 1.4 1.4-2.8 2.8L1.3 15.6l2.8-2.8 1.4 1.4 7.1-7.1-1.4-1.4 3.4-3.4zM2 21h9v2H2z"/></svg></div>
-        <div><h1>Painel de habilitação</h1><p>Acesso do leiloeiro</p></div>
+      <div class="marca">
+        <div class="marca-icone" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3l7 7-3 3-7-7z"/><path d="M11 6L5 12"/><path d="M9.5 14.5L4 20"/><path d="M3 21h9"/></svg></div>
+        <div><strong>Painel do leiloeiro</strong><span>Habilitação digital de arrematantes</span></div>
       </div>
       <label for="login-email">E-mail</label>
       <input id="login-email" type="email" autocomplete="username" required maxlength="254">
       <label for="login-senha">Senha</label>
       <input id="login-senha" type="password" autocomplete="current-password" required maxlength="200">
-      <p id="login-erro" class="erro" role="alert" hidden></p>
-      <button class="btn primary" type="submit">Entrar</button>
+      <p id="login-erro" class="alerta erro" role="alert" hidden></p>
+      <button class="btn primario" type="submit">Entrar</button>
     </form>
   </main>
 
-  <!-- Painel -->
-  <div id="tela-painel" class="wrap" hidden>
-    <header class="top">
-      <div class="brand">
-        <div class="gavel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.6 2.3l7.1 7.1-2.8 2.8-1.4-1.4-2.8 2.8 5.7 5.7-2.1 2.1-5.7-5.7-2.8 2.8 1.4 1.4-2.8 2.8L1.3 15.6l2.8-2.8 1.4 1.4 7.1-7.1-1.4-1.4 3.4-3.4zM2 21h9v2H2z"/></svg></div>
-        <div><h1 id="nome-leiloeiro">—</h1><p>Painel de habilitação de arrematantes</p></div>
+  <!-- Aplicação -->
+  <div id="tela-app" class="app" hidden>
+    <nav class="menu" aria-label="Menu do painel">
+      <div class="marca">
+        <div class="marca-icone" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 3l7 7-3 3-7-7z"/><path d="M11 6L5 12"/><path d="M9.5 14.5L4 20"/><path d="M3 21h9"/></svg></div>
+        <div><strong id="nome-leiloeiro">—</strong><span>Habilitação digital</span></div>
       </div>
-      <div class="sessao">
-        <span id="email-operador" class="muted"></span>
-        <a id="btn-pacote" class="btn primary" href="/painel/api/exportar-pacote?status=aprovado" title="ZIP com planilha + documento com foto e comprovante de cada arrematante aprovado">Baixar aprovados com documentos (ZIP)</a>
-        <a id="btn-exportar" class="btn ghost" href="/painel/api/exportar?status=aprovado" title="Só a planilha, sem documentos">Só planilha (CSV)</a>
-        <button id="btn-sair" class="btn ghost" type="button">Sair</button>
+
+      <div class="grupo">
+        <span class="grupo-titulo">Visualização</span>
+        <a href="#visao-geral" data-rota="visao-geral"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Visão geral</a>
+        <a href="#habilitacoes" data-rota="habilitacoes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span class="cresce">Habilitações</span><span id="badge-pendentes" class="badge" hidden>0</span></a>
+        <a href="#arrematantes" data-rota="arrematantes"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/><path d="M17 4a4 4 0 0 1 0 8"/><path d="M22 21c0-3-2-5.5-5-6.5"/></svg>Arrematantes</a>
+        <a href="#editais" data-rota="editais"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h8M8 8h4"/></svg>Editais e notícias</a>
+        <a href="#exportacoes" data-rota="exportacoes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>Exportações</a>
+        <a href="#auditoria" data-rota="auditoria"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Auditoria</a>
       </div>
-    </header>
 
-    <section class="kpis" aria-label="Resumo">
-      <div class="kpi pend"><small>Aguardando análise</small><strong id="k-pendente">0</strong></div>
-      <div class="kpi"><small>Aprovados</small><strong id="k-aprovado">0</strong></div>
-      <div class="kpi"><small>Recusados</small><strong id="k-recusado">0</strong></div>
-      <div class="kpi"><small>Revogados</small><strong id="k-revogado">0</strong></div>
-    </section>
+      <div class="grupo">
+        <span class="grupo-titulo">Configuração</span>
+        <a href="#config-dados" data-rota="config-dados"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/></svg>Dados do leiloeiro</a>
+        <a href="#config-termo" data-rota="config-termo"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 13l2 2 4-4"/></svg>Termo de aceite</a>
+        <a href="#config-equipe" data-rota="config-equipe"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>Equipe e acessos</a>
+        <a href="#config-notificacoes" data-rota="config-notificacoes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg>Notificações</a>
+        <a href="#config-privacidade" data-rota="config-privacidade"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>Privacidade (LGPD)</a>
+        <a href="#config-integracoes" data-rota="config-integracoes"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14l-3 3a3 3 0 0 1-4-4l3-3"/><path d="M14 10l3-3a3 3 0 0 1 4 4l-3 3"/><path d="M9 15l6-6"/></svg>Integrações</a>
+      </div>
 
-    <main class="desk">
-      <section class="panel" aria-label="Fila de habilitações">
-        <div class="panel-head">
-          <h2>Habilitações</h2>
-          <div class="tabs" role="group" aria-label="Filtrar por status">
-            <button class="tab" type="button" data-f="pendente" aria-pressed="true">Pendentes</button>
-            <button class="tab" type="button" data-f="aprovado" aria-pressed="false">Aprovados</button>
-            <button class="tab" type="button" data-f="recusado" aria-pressed="false">Recusados</button>
-            <button class="tab" type="button" data-f="todos" aria-pressed="false">Todos</button>
-          </div>
-          <input id="busca" class="search" type="search" placeholder="Buscar por nome, e-mail ou CPF" aria-label="Buscar">
+      <div class="usuario">
+        <strong id="usuario-nome">—</strong>
+        <span id="usuario-detalhe">—</span>
+        <button id="btn-sair" type="button" class="link-claro">Sair</button>
+      </div>
+    </nav>
+
+    <main class="conteudo">
+      <header class="topo">
+        <div>
+          <span class="trilha" id="trilha">—</span>
+          <h1 id="titulo">—</h1>
         </div>
-        <div class="list" id="lista"></div>
-      </section>
-      <section class="panel" aria-label="Ficha do arrematante" id="ficha"><p class="empty">Selecione uma habilitação.</p></section>
+        <div class="topo-acoes" id="topo-acoes"></div>
+      </header>
+      <div class="pagina" id="pagina" tabindex="-1"></div>
     </main>
-    <p class="foot">Cada abertura de ficha, documento, decisão e exportação fica registrada na auditoria.</p>
   </div>
 
   <div class="toast" id="toast" role="status" hidden></div>

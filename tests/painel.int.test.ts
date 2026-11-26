@@ -94,7 +94,7 @@ describe.skipIf(!url)('painel do leiloeiro (Postgres real)', () => {
   it('página do painel abre com CSP estrita e sem cache', async () => {
     const r = await request(app()).get('/painel/');
     expect(r.status).toBe(200);
-    expect(r.text).toContain('Painel de habilitação');
+    expect(r.text).toContain('Painel do leiloeiro');
     expect(r.headers['content-security-policy']).toContain("script-src 'self'");
     expect(r.headers['cache-control']).toBe('no-store');
     expect((await request(app()).get('/painel/static/app.js')).status).toBe(200);

@@ -9,6 +9,7 @@ import { montarPacoteZip, PacoteGrandeDemaisError } from '../exportacao/pacoteZi
 import type { Pool } from 'pg';
 import { SESSAO_HORAS, type AuthPainel, type Operador } from './auth';
 import type { Decisao, PainelRepo } from './repo';
+import { ValidacaoError, type GestaoRepo } from './gestao';
 
 export const PAINEL_PATH = '/painel';
 const COOKIE = 'sbl_sessao';
@@ -26,6 +27,12 @@ export interface PainelDeps {
   producao: boolean;
   /** Pasta com index.html/app.js/app.css */
   webDir?: string;
+  /** Telas de gestão (visão geral, auditoria, configuração, equipe) */
+  gestao?: GestaoRepo;
+  /** Para montar o link de habilitação (t.me/<bot>?start=<slug>) */
+  botUsername?: string;
+  /** Remetente dos e-mails (mostra se o domínio próprio já foi configurado) */
+  mailFrom?: string;
 }
 
 type ReqOp = Request & { operador?: Operador };
@@ -201,6 +208,71 @@ export function createPainelRouter(deps: PainelDeps): Router {
     );
     res.send(gerarCsv(linhas));
   });
+
+  // ---------- Gestão: visão geral, auditoria, editais e configuração ----------
+  const g = deps.gestao;
+  if (g) {
+    const exigirDono = (req: ReqOp, res: Response, next: NextFunction) => {
+      if (req.operador?.papel !== 'dono') {
+        res.status(403).json({ erro: 'somente_responsavel', mensagem: 'Somente o responsável pode alterar configurações.' });
+        return;
+      }
+      next();
+    };
+    const tratar = (fn: (req: ReqOp, res: Response) => Promise<unknown>) => async (req: ReqOp, res: Response) => {
+      try {
+        await fn(req, res);
+      } catch (e) {
+        if (e instanceof ValidacaoError) {
+          res.status(400).json({ erro: 'validacao', mensagem: e.message });
+          return;
+        }
+        throw e;
+      }
+    };
+    const op = (req: ReqOp) => req.operador!;
+
+    api.get('/resumo', exigirLogin, async (req: ReqOp, res) => res.json(await g.resumo(op(req).leiloeiro_id)));
+    api.get('/auditoria', exigirLogin, async (req: ReqOp, res) => res.json({ itens: await g.auditoria(op(req).leiloeiro_id) }));
+    api.get('/exportacoes', exigirLogin, async (req: ReqOp, res) => res.json({ itens: await g.exportacoes(op(req).leiloeiro_id) }));
+    api.get('/publicacoes', exigirLogin, async (_req, res) => res.json({ itens: await g.publicacoes(40) }));
+
+    api.get('/config', exigirLogin, async (req: ReqOp, res) => {
+      const dados = await g.leiloeiro(op(req).leiloeiro_id);
+      res.json({
+        dados,
+        link: deps.botUsername ? `https://t.me/${deps.botUsername}?start=${dados.slug}` : null,
+        podeEditar: op(req).papel === 'dono',
+        integracoes: {
+          bot: deps.botUsername ? `@${deps.botUsername}` : null,
+          emailDominioProprio: !!deps.mailFrom && !/resend\.dev/i.test(deps.mailFrom),
+          ultimaColeta: await g.ultimaColeta(),
+        },
+      });
+    });
+    api.put('/config/dados', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
+      await g.salvarDados(op(req).leiloeiro_id, op(req).id, req.body ?? {});
+      res.json({ ok: true });
+    }));
+    api.put('/config/privacidade', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
+      await g.salvarPrivacidade(op(req).leiloeiro_id, op(req).id, req.body ?? {});
+      res.json({ ok: true });
+    }));
+    api.get('/config/termo', exigirLogin, async (req: ReqOp, res) => res.json({ versoes: await g.versoesTermo(op(req).leiloeiro_id) }));
+    api.post('/config/termo', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
+      res.json({ ok: true, versao: await g.publicarTermo(op(req).leiloeiro_id, op(req).id, req.body?.texto) });
+    }));
+
+    api.get('/equipe', exigirLogin, async (req: ReqOp, res) => res.json({ itens: await g.equipe(op(req).leiloeiro_id), eu: op(req).id }));
+    api.post('/equipe', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
+      res.json(await g.convidar(op(req).leiloeiro_id, op(req).id, req.body ?? {}));
+    }));
+    api.patch('/equipe/:id', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
+      const alvo = Number(req.params.id);
+      if (!Number.isInteger(alvo)) throw new ValidacaoError('Pessoa inválida');
+      res.json(await g.alterarMembro(op(req).leiloeiro_id, op(req).id, alvo, req.body ?? {}));
+    }));
+  }
 
   // Pacote ZIP: CSV + documentos de cada arrematante (para importar na plataforma do leiloeiro)
   api.get(

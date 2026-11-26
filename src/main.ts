@@ -14,6 +14,7 @@ import { executarManutencao } from './tarefas/manutencao';
 import { createAuthPainel } from './painel/auth';
 import { createPainelRepo } from './painel/repo';
 import { createPainelRouter } from './painel/router';
+import { createGestaoRepo } from './painel/gestao';
 
 function criarDocStore(env: Env): DocStore {
   if (env.DOCS_STORAGE === 's3') {
@@ -49,7 +50,8 @@ async function main() {
     publicacoes,
     sessionStorage: createPgSessionStorage<SessionData>(pool),
   });
-  const manutencao = () => executarManutencao(pool, publicacoes, { coletar: env.SCRAPER_ENABLED });
+  await bot.init(); // carrega @username do bot (link de habilitação no painel)
+  const manutencao = () => executarManutencao(pool, publicacoes, { coletar: env.SCRAPER_ENABLED, docs });
   const webhook = env.BOT_MODE === 'webhook';
   const painel = createPainelRouter({
     pool,
@@ -58,6 +60,9 @@ async function main() {
     docs,
     telegram: bot.api,
     producao: env.NODE_ENV === 'production',
+    gestao: createGestaoRepo(pool),
+    botUsername: bot.botInfo.username,
+    mailFrom: env.MAIL_FROM,
   });
   const app = createApp({
     pool,
