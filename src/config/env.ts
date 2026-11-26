@@ -47,6 +47,10 @@ const schema = z
     SMTP_PASS: z.string().optional(),
     MAIL_FROM: z.string().optional(),
 
+    // Resend via API HTTPS (recomendado em hosts que bloqueiam SMTP, como o Render grátis).
+    // Se ausente e SMTP_HOST=smtp.resend.com, a chave de SMTP_PASS é usada na API.
+    RESEND_API_KEY: z.string().regex(/^re_[A-Za-z0-9_]+$/, 'RESEND_API_KEY deve começar com re_').optional(),
+
     // Coleta do Jornal Imprensa Leilões
     SCRAPER_ENABLED: z
       .enum(['true', 'false'])
@@ -61,8 +65,12 @@ const schema = z
         if (!env[k]) ctx.addIssue({ code: 'custom', path: [k], message: `DOCS_STORAGE=s3 exige ${k}` });
       }
     }
-    if (env.NODE_ENV === 'production' && (!env.SMTP_HOST || !env.MAIL_FROM)) {
-      ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'produção exige SMTP_HOST e MAIL_FROM' });
+    if (env.NODE_ENV === 'production' && ((!env.SMTP_HOST && !env.RESEND_API_KEY) || !env.MAIL_FROM)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_HOST'],
+        message: 'produção exige MAIL_FROM e um meio de envio (SMTP_HOST ou RESEND_API_KEY)',
+      });
     }
     if (env.BOT_MODE === 'webhook') {
       if (!env.PUBLIC_URL?.startsWith('https://')) {
@@ -78,7 +86,14 @@ export type Env = z.infer<typeof schema>;
 
 /** Valida variáveis de ambiente. Nunca inclui valores na mensagem de erro (evita vazar segredos em log). */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== ''));
+  // Painéis de hospedagem guardam o valor literal: remove espaços e aspas coladas por engano ("valor")
+  const limpar = (v: string) => v.trim().replace(/^(["'])(.*)\1$/, '$2');
+  const cleaned = Object.fromEntries(
+    Object.entries(source)
+      .filter((e): e is [string, string] => typeof e[1] === 'string')
+      .map(([k, v]) => [k, limpar(v)] as const)
+      .filter(([, v]) => v !== ''),
+  );
   const result = schema.safeParse(cleaned);
   if (!result.success) {
     const problems = result.error.issues.map((i) => `- ${i.path.join('.')}: ${i.message}`).join('\n');

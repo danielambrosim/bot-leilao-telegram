@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts",
     "exportar:habilitados": "tsx src/scripts/exportarHabilitados.ts",
-    "seed": "tsx src/scripts/seed.ts"
+    "seed": "tsx src/scripts/seed.ts",
+    "operador:criar": "tsx src/scripts/criarOperador.ts"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,8 @@
     "nodemailer": "^10.6.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
+    "qrcode-generator": "^2.0.4",
+    "yazl": "^3.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -45,9 +48,13 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
+    "jsqr": "^1.4.0",
     "supertest": "^7.3.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.2"
+    "vitest": "^5.1.2",
+    "yauzl": "^3.4.0"
   }
 }

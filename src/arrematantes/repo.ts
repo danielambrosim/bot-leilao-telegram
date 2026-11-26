@@ -3,6 +3,16 @@ import type { Pool, PoolClient } from 'pg';
 export type TipoDocumento = 'identidade' | 'comprovante_residencia';
 export type StatusHabilitacao = 'pendente' | 'aprovado' | 'recusado' | 'revogado';
 
+export type EstadoCivil = 'solteiro' | 'casado' | 'divorciado' | 'viuvo' | 'uniao_estavel';
+
+export const ESTADOS_CIVIS: Record<EstadoCivil, string> = {
+  solteiro: 'Solteiro(a)',
+  casado: 'Casado(a)',
+  divorciado: 'Divorciado(a)',
+  viuvo: 'Viúvo(a)',
+  uniao_estavel: 'União estável',
+};
+
 export interface Arrematante {
   id: number;
   telegram_chat_id: number;
@@ -11,6 +21,30 @@ export interface Arrematante {
   cpf: string;
   cnpj: string | null;
   endereco: string;
+  data_nascimento: string | null; // AAAA-MM-DD
+  estado_civil: EstadoCivil | null;
+  profissao: string | null;
+  razao_social: string | null;
+}
+
+/** Dados complementares exigidos pelos leiloeiros (PF ou PJ). */
+export interface DadosComplementares {
+  dataNascimento?: string; // AAAA-MM-DD
+  estadoCivil?: EstadoCivil;
+  profissao?: string;
+  razaoSocial?: string;
+}
+
+/** Quais dados complementares faltam (cadastros antigos, feitos antes da exigência). */
+export function camposFaltantes(a: Pick<Arrematante, 'cnpj' | 'data_nascimento' | 'estado_civil' | 'profissao' | 'razao_social'>) {
+  if (a.cnpj) return a.razao_social ? [] : (['razao_social'] as const);
+  return (
+    [
+      !a.data_nascimento && 'nascimento',
+      !a.estado_civil && 'estado_civil',
+      !a.profissao && 'profissao',
+    ] as const
+  ).filter(Boolean) as Array<'nascimento' | 'estado_civil' | 'profissao'>;
 }
 
 export interface NovoArrematante {
@@ -30,6 +64,7 @@ export interface NovoArrematante {
   uf: string;
   /** Endereço completo em uma linha (exibição) */
   endereco: string;
+  complementares: DadosComplementares;
 }
 
 export interface NovoDocumento {
@@ -69,6 +104,8 @@ export interface ArrematanteRepo {
   ): Promise<number>;
   habilitar(arrematanteId: number, leiloeiroId: number, termoVersao: number): Promise<ResultadoHabilitacao>;
   statusHabilitacao(arrematanteId: number, leiloeiroId: number): Promise<StatusHabilitacao | null>;
+  /** Completa dados exigidos depois do cadastro original (só preenche o que está vazio). */
+  complementar(arrematanteId: number, dados: DadosComplementares): Promise<void>;
   listarHabilitacoes(arrematanteId: number): Promise<HabilitacaoResumo[]>;
   /** Exclusão a pedido do titular (LGPD art. 18). Retorna as chaves dos documentos para apagar do storage. */
   excluir(arrematanteId: number): Promise<string[]>;
@@ -85,7 +122,8 @@ export function createArrematanteRepo(pool: Pool): ArrematanteRepo {
   return {
     async buscarPorChat(chatId) {
       const { rows } = await pool.query<Arrematante>(
-        `SELECT id::int AS id, telegram_chat_id::float8 AS telegram_chat_id, nome, email, cpf, cnpj, endereco
+        `SELECT id::int AS id, telegram_chat_id::float8 AS telegram_chat_id, nome, email, cpf, cnpj, endereco,
+                to_char(data_nascimento, 'YYYY-MM-DD') AS data_nascimento, estado_civil, profissao, razao_social
            FROM arrematantes WHERE telegram_chat_id = $1`,
         [chatId],
       );
@@ -109,12 +147,16 @@ export function createArrematanteRepo(pool: Pool): ArrematanteRepo {
         await client.query('BEGIN');
         const { rows } = await client.query<{ id: number }>(
           `INSERT INTO arrematantes (telegram_chat_id, nome, email, email_verificado_em, cpf, cnpj, endereco,
-                                     rg_ie, celular, cep, logradouro, numero, complemento, bairro, cidade, uf)
-           VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id::int AS id`,
+                                     rg_ie, celular, cep, logradouro, numero, complemento, bairro, cidade, uf,
+                                     data_nascimento, estado_civil, profissao, razao_social)
+           VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+           RETURNING id::int AS id`,
           [
             dados.telegramChatId, dados.nome, dados.email, dados.cpf, dados.cnpj ?? null, dados.endereco,
             dados.rgIe, dados.celular, dados.cep, dados.logradouro, dados.numero, dados.complemento ?? null,
             dados.bairro, dados.cidade, dados.uf,
+            dados.complementares.dataNascimento ?? null, dados.complementares.estadoCivil ?? null,
+            dados.complementares.profissao ?? null, dados.complementares.razaoSocial ?? null,
           ],
         );
         const id = rows[0]!.id;
@@ -162,6 +204,20 @@ export function createArrematanteRepo(pool: Pool): ArrematanteRepo {
         [arrematanteId, leiloeiroId],
       );
       return { criada: false, status: atual.rows[0]!.status };
+    },
+
+    async complementar(arrematanteId, d) {
+      await pool.query(
+        `UPDATE arrematantes SET
+           data_nascimento = coalesce(data_nascimento, $2::date),
+           estado_civil = coalesce(estado_civil, $3),
+           profissao = coalesce(profissao, $4),
+           razao_social = coalesce(razao_social, $5),
+           atualizado_em = now()
+         WHERE id = $1`,
+        [arrematanteId, d.dataNascimento ?? null, d.estadoCivil ?? null, d.profissao ?? null, d.razaoSocial ?? null],
+      );
+      await auditar(pool, 'arrematante.complementado', arrematanteId, null);
     },
 
     async statusHabilitacao(arrematanteId, leiloeiroId) {

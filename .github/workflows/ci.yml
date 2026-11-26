@@ -1,0 +1,52 @@
+# CI: roda em todo PR e em push nas branches protegidas.
+# O job "testes" é exigido pela proteção da main: PR só entra com ele verde.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, refactor/b2b-fase1]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: sbl_test
+          POSTGRES_USER: sbl
+          POSTGRES_PASSWORD: sbl_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sbl -d sbl_test"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: Checagem de tipos
+        run: npx tsc --noEmit
+      - name: Testes (unitários + integração com Postgres real)
+        run: npx vitest run
+        env:
+          TEST_DATABASE_URL: postgres://sbl:sbl_ci@127.0.0.1:5432/sbl_test
+      - name: Auditoria de dependências (produção)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build da imagem de produção
+        run: docker build -t sbl:ci .
