@@ -206,3 +206,79 @@ describe.skipIf(!url)('painel do leiloeiro (Postgres real)', () => {
     await expect(createAuthPainel(pool).criarOperador('colodete', 'x@y.com', 'curta1')).rejects.toThrow(/fraca/);
   });
 });
+
+describe.skipIf(!url)('pacote ZIP com documentos (Postgres real)', () => {
+  const pool = createPool(url!);
+  let dir: string;
+  afterAll(async () => {
+    await pool.end();
+    if (dir) await rm(dir, { recursive: true, force: true });
+  });
+
+  it('ZIP traz planilha com caminho dos arquivos + documentos decifrados, só do próprio leiloeiro', async () => {
+    const yauzl = await import('yauzl');
+    dir = await mkdtemp(path.join(tmpdir(), 'sbl-zip-'));
+    const docs = createLocalDocStore(dir, Buffer.alloc(32, 6).toString('base64'));
+    await pool.query('TRUNCATE leiloeiros, arrematantes, operadores, sessoes_painel, auditoria RESTART IDENTITY CASCADE');
+    await pool.query(`INSERT INTO leiloeiros (slug, nome, termo_texto) VALUES ('colodete','Colodete Leilões','t'), ('outro','Outro','t')`);
+    await createAuthPainel(pool).criarOperador('colodete', 'dono@colodete.test', SENHA);
+    const { rows: a } = await pool.query(
+      `INSERT INTO arrematantes (telegram_chat_id, nome, email, cpf, endereco) VALUES
+        (1, 'Maria José da Silva', 'm@x.com', '52998224725', 'Rua A'), (2, 'João Outro', 'j@x.com', '11144477735', 'Rua B')
+       RETURNING id::int AS id`,
+    );
+    for (const [arr, tipo, mime, conteudo] of [
+      [a[0].id, 'identidade', 'image/jpeg', 'JPEG-RG-MARIA'],
+      [a[0].id, 'comprovante_residencia', 'application/pdf', '%PDF-COMPROVANTE-MARIA'],
+      [a[1].id, 'identidade', 'image/jpeg', 'JPEG-RG-JOAO'],
+    ] as const) {
+      const s = await docs.salvar(`chat-${arr}`, Buffer.from(conteudo));
+      await pool.query(
+        `INSERT INTO documentos (arrematante_id, tipo, r2_key, sha256, mime, tamanho_bytes, expira_em) VALUES ($1,$2,$3,$4,$5,$6, now()+interval '1 day')`,
+        [arr, tipo, s.chave, s.sha256, mime, s.tamanhoBytes],
+      );
+    }
+    await pool.query(`INSERT INTO habilitacoes (arrematante_id, leiloeiro_id, termo_versao, status) VALUES ($1,1,1,'aprovado'), ($2,2,1,'aprovado')`, [a[0].id, a[1].id]);
+
+    const app = createApp({
+      pool,
+      painel: createPainelRouter({ pool, auth: createAuthPainel(pool), repo: createPainelRepo(pool), docs, producao: false, webDir: path.resolve(__dirname, '../painel-web') }),
+    });
+    expect((await request(app).get('/painel/api/exportar-pacote')).status).toBe(401);
+    const agent = request.agent(app);
+    await agent.post('/painel/api/login').set(H).send({ email: 'dono@colodete.test', senha: SENHA });
+    const r = await agent.get('/painel/api/exportar-pacote?status=aprovado').buffer(true).parse((res, cb) => {
+      const partes: Buffer[] = [];
+      res.on('data', (c: Buffer) => partes.push(c));
+      res.on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toBe('application/zip');
+    expect(r.headers['content-disposition']).toMatch(/colodete-aprovado-.*\.zip/);
+
+    const entradas = await new Promise<Record<string, string>>((resolve, reject) => {
+      yauzl.fromBuffer(r.body as Buffer, { lazyEntries: true }, (err, zf) => {
+        if (err || !zf) return reject(err);
+        const out: Record<string, string> = {};
+        zf.readEntry();
+        zf.on('entry', (e) => zf.openReadStream(e, (e2, s) => {
+          if (e2 || !s) return reject(e2);
+          const p: Buffer[] = [];
+          s.on('data', (c: Buffer) => p.push(c));
+          s.on('end', () => { out[e.fileName] = Buffer.concat(p).toString('utf8'); zf.readEntry(); });
+        }));
+        zf.on('end', () => resolve(out));
+      });
+    });
+    const pasta = `documentos/${a[0].id}-maria-jose-da-silva`;
+    expect(Object.keys(entradas).sort()).toEqual(['LEIA-ME.txt', `${pasta}/comprovante.pdf`, `${pasta}/documento.jpg`, 'habilitados.csv']);
+    expect(entradas[`${pasta}/documento.jpg`]).toBe('JPEG-RG-MARIA');
+    expect(entradas[`${pasta}/comprovante.pdf`]).toBe('%PDF-COMPROVANTE-MARIA');
+    const csv = entradas['habilitados.csv']!;
+    expect(csv).toContain('Arquivo documento;Arquivo comprovante');
+    expect(csv).toContain(`${pasta}/documento.jpg;${pasta}/comprovante.pdf`);
+    expect(csv).not.toContain('João');
+    const { rows } = await pool.query(`SELECT detalhes FROM auditoria WHERE acao = 'exportacao.pacote'`);
+    expect(rows[0].detalhes).toMatchObject({ quantidade: 1, documentos: 2 });
+  });
+});

@@ -64,8 +64,12 @@ export function celula(valor: string): string {
   return /[;"']/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
+/** Caminhos dos documentos dentro do ZIP, por id do arrematante (colunas extras no CSV do pacote). */
+export type ArquivosPorArrematante = Map<number, { identidade?: string; comprovante?: string }>;
+
 /** CSV no padrão do Excel brasileiro: separador ';', BOM UTF-8, CRLF. */
-export function gerarCsv(linhas: LinhaExportacao[]): string {
+export function gerarCsv(linhas: LinhaExportacao[], arquivos?: ArquivosPorArrematante): string {
+  const cabecalho = arquivos ? [...COLUNAS, 'Arquivo documento', 'Arquivo comprovante'] : [...COLUNAS];
   const corpo = linhas.map((l) =>
     [
       String(l.id),
@@ -85,11 +89,12 @@ export function gerarCsv(linhas: LinhaExportacao[]): string {
       STATUS[l.status],
       fmtData(l.consentido_em),
       fmtData(l.decidido_em),
+      ...(arquivos ? [arquivos.get(l.id)?.identidade ?? '', arquivos.get(l.id)?.comprovante ?? ''] : []),
     ]
       .map(celula)
       .join(';'),
   );
-  return '﻿' + [COLUNAS.join(';'), ...corpo].join('\r\n') + '\r\n';
+  return '﻿' + [cabecalho.join(';'), ...corpo].join('\r\n') + '\r\n';
 }
 
 export async function buscarHabilitados(

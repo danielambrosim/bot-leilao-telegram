@@ -5,6 +5,7 @@ import type { Api } from 'grammy';
 import type { DocStore } from '../docs/store';
 import type { StatusHabilitacao, TipoDocumento } from '../arrematantes/repo';
 import { gerarCsv, buscarHabilitados } from '../exportacao/habilitados';
+import { montarPacoteZip, PacoteGrandeDemaisError } from '../exportacao/pacoteZip';
 import type { Pool } from 'pg';
 import { SESSAO_HORAS, type AuthPainel, type Operador } from './auth';
 import type { Decisao, PainelRepo } from './repo';
@@ -200,6 +201,40 @@ export function createPainelRouter(deps: PainelDeps): Router {
     );
     res.send(gerarCsv(linhas));
   });
+
+  // Pacote ZIP: CSV + documentos de cada arrematante (para importar na plataforma do leiloeiro)
+  api.get(
+    '/exportar-pacote',
+    rateLimit({ windowMs: 60_000, limit: 5, standardHeaders: 'draft-8', legacyHeaders: false }),
+    exigirLogin,
+    async (req: ReqOp, res) => {
+      const status = STATUS.includes(req.query.status as never) ? (req.query.status as StatusHabilitacao) : 'aprovado';
+      const op = req.operador!;
+      let pacote;
+      try {
+        pacote = await montarPacoteZip(deps.pool, deps.docs, op.leiloeiro_slug, status);
+      } catch (e) {
+        if (e instanceof PacoteGrandeDemaisError) {
+          res.status(413).json({ erro: 'pacote_grande', mensagem: e.message });
+          return;
+        }
+        throw e;
+      }
+      await deps.auth.auditar(op.id, op.leiloeiro_id, 'exportacao.pacote', {
+        status, quantidade: pacote.quantidade, documentos: pacote.documentos, via: 'painel',
+      });
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${op.leiloeiro_slug}-${status}-${new Date().toISOString().slice(0, 10)}.zip"`,
+      );
+      pacote.stream.on('error', (err) => {
+        console.error('[painel] falha ao gerar pacote:', err.message);
+        res.destroy(err);
+      });
+      pacote.stream.pipe(res);
+    },
+  );
 
   api.use((_req, res) => {
     res.status(404).json({ erro: 'nao_encontrado' });
