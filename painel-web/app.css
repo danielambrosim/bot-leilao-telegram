@@ -91,7 +91,7 @@ a:hover { color: var(--azul-escuro); }
 .kpi { background: var(--superficie); border: 1px solid var(--linha); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
 .kpi small { font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: .06em; }
 .kpi strong { font-family: var(--f-titulo); font-size: 30px; font-weight: 600; color: var(--navy); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.kpi strong.alerta { color: var(--alerta); }
+.kpi strong.destaque { color: var(--alerta); }
 .kpi span { font-size: 12px; color: var(--suave); }
 
 .tabela-caixa { overflow-x: auto; }

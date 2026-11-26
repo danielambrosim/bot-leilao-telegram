@@ -148,7 +148,7 @@ async function paginaVisaoGeral(alvo) {
   const tempo = k.tempoMedioMin == null ? '—' : k.tempoMedioMin < 60 ? `${k.tempoMedioMin} min` : `${Math.floor(k.tempoMedioMin / 60)}h${String(k.tempoMedioMin % 60).padStart(2, '0')}`;
 
   const kpis = el('section', { class: 'kpis', 'aria-label': 'Indicadores' },
-    el('div', { class: 'kpi' }, el('small', {}, 'Aguardando análise'), el('strong', { class: k.pendentes ? 'alerta' : '' }, k.pendentes), el('span', {}, k.atrasados ? `${k.atrasados} há mais de 24 h` : 'Nenhuma atrasada')),
+    el('div', { class: 'kpi' }, el('small', {}, 'Aguardando análise'), el('strong', { class: k.pendentes ? 'destaque' : '' }, k.pendentes), el('span', {}, k.atrasados ? `${k.atrasados} há mais de 24 h` : 'Nenhuma atrasada')),
     el('div', { class: 'kpi' }, el('small', {}, 'Aprovados · 30 dias'), el('strong', {}, k.aprovados30), el('span', {}, 'Decisões dos últimos 30 dias')),
     el('div', { class: 'kpi' }, el('small', {}, 'Tempo médio de análise'), el('strong', {}, tempo), el('span', {}, 'Do envio à decisão, 30 dias')),
     el('div', { class: 'kpi' }, el('small', {}, 'Taxa de recusa'), el('strong', {}, k.taxaRecusa == null ? '—' : `${k.taxaRecusa}%`), el('span', {}, 'Recusadas sobre decididas, 30 dias')),
