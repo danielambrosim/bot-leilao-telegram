@@ -1,65 +1,101 @@
-# SBL — Habilitação digital de arrematantes via Telegram
+# SBL — Habilitação digital de arrematantes
 
-Bot compartilhado para **leiloeiros (B2B)**. O arrematante abre o link do leiloeiro
-(`t.me/<SeuBot>?start=<slug>`), faz um **cadastro único** e se habilita em cada leiloeiro com
-consentimento próprio. O leiloeiro aprova ou recusa no painel.
+Bot do Telegram + painel web para **leiloeiros**. O arrematante abre o link (ou QR code) do leiloeiro,
+faz um **cadastro único** com documentos e se habilita; o leiloeiro analisa, aprova ou recusa no painel
+e exporta os habilitados (planilha + documentos) para a plataforma de leilão.
 
-> **Status: v2 em reescrita (fase 2 de 6).** O código da v1 está em `legacy/src-v1` apenas como referência.
-> A auditoria de segurança da v1 (57 achados) é mantida fora do repositório.
+**Produção:** bot `@api_leilao_bot` · painel `https://sbl-bot-mj6r.onrender.com/painel/` · cliente piloto: Colodete Leilões.
 
-## Roadmap
+## Mapa do repositório
 
-| Fase | Conteúdo | Status |
-|---|---|---|
-| 1 | Schema Postgres, env validado, grammY + webhook, Docker/Caddy, remoção de rotas abertas e Puppeteer | ✅ |
-| 2 | Cadastro único, habilitação por leiloeiro, código de e-mail com limite, docs cifrados, /excluirmeusdados, coleta do Jornal Imprensa Leilões | ✅ |
-| 3 | Rate limit, código de e-mail com expiração, sessões persistentes, auditoria | ⏳ |
-| 4 | Painel do leiloeiro (Vite + React, login) — substitui `dashboard-admin/` | ⏳ |
-| 5 | Documentos criptografados no R2 com retenção; scraper e avisos de editais | ⏳ |
-| 6 | Deploy (Render grátis: `render.yaml` + `docs/DEPLOY_RENDER.md`; VPS: `docker-compose.yml`), capturas e site comercial | 🚧 |
+```text
+src/                    Código do servidor (TypeScript)
+  main.ts               Ponto de entrada: liga banco, bot, painel e tarefas
+  bot/                  Bot do Telegram (fluxo de cadastro e habilitação)
+  painel/               API do painel: login, fila, ficha, decisões, configuração, equipe, QR code
+  arrematantes/         Acesso ao banco: cadastro do arrematante e habilitações
+  leiloeiros/           Acesso ao banco: leiloeiros
+  exportacao/           CSV e pacote ZIP para a plataforma do leiloeiro
+  docs/                 Guarda de documentos criptografados (disco ou bucket S3)
+  scraper/              Coleta do Jornal Imprensa Leilões
+  tarefas/              Manutenção periódica (coleta, limpeza, expurgo LGPD)
+  mail/ verificacao/    E-mail e código de confirmação
+  config/ db/ http/     Variáveis de ambiente, conexão/migrações, servidor HTTP
+  scripts/              Comandos de linha (seed, criar operador, exportar...)
+  util/                 Validações (CPF, CNPJ, CEP, datas)
+painel-web/             Interface do painel (HTML/CSS/JS sem dependências)
+db/migrations/          Estrutura do banco, em ordem (aplicadas sozinhas no deploy)
+db/seeds/               Dados iniciais (leiloeiros)
+tests/                  Testes automáticos (unitários + integração com Postgres)
+docs/                   Guias: deploy, piloto, revisão de PR, mockups
+.github/workflows/      CI (testes em todo PR) e agendador de manutenção
+Dockerfile              Imagem de produção
+render.yaml             Configuração do Render (produção atual)
+docker-compose.yml      Produção alternativa em VPS (com Caddy/HTTPS)
+docker-compose.dev.yml  Só o Postgres para desenvolvimento local
+docker-compose.piloto.yml / .mailpit.yml   Piloto local com caixa de e-mail falsa
+```
 
-## Stack
+## Como trabalhar (fluxo de branches)
 
-Node 22 · TypeScript · grammY · Express 5 · PostgreSQL 17 · Docker Compose · Caddy (HTTPS automático) · Vitest
+```text
+main  ← única branch permanente; é o que está (ou vai) para produção
+  └─ feat/<assunto>   funcionalidade nova     ─┐
+  └─ fix/<assunto>    correção                 ├─ PR para main → CI verde → revisão → merge
+  └─ chore/<assunto>  organização/manutenção  ─┘
+```
 
-## Desenvolvimento
+1. Crie a branch a partir da `main` atualizada.
+2. Abra PR para `main`. O check **testes** precisa ficar verde.
+3. Revise com o roteiro [`docs/COMO-REVISAR-PR.md`](docs/COMO-REVISAR-PR.md) e faça o merge (*Squash and merge*).
+4. Apague a branch do PR depois do merge (botão no próprio PR).
+
+A `main` é protegida: sem push direto, sem force-push, sem exclusão.
+
+## Rodar localmente
 
 Pré-requisitos: Node 22+, Docker.
 
-```bash
-cp .env.example .env            # preencha TELEGRAM_TOKEN
+```powershell
+copy .env.example .env      # preencha TELEGRAM_TOKEN, APP_SECRET, DOCS_ENCRYPTION_KEY
 npm install
 docker compose -f docker-compose.dev.yml up -d
 npm run migrate
-docker compose -f docker-compose.dev.yml exec -T db psql -U sbl -d sbl < db/seeds/dev.sql
-npm run coletar:imprensa        # opcional: coleta notícias/edições do Jornal Imprensa Leilões
-npm run dev                     # bot em polling
+npm run seed -- db/seeds/dev.sql
+npm run dev
 ```
 
-Teste no Telegram: `t.me/<SeuBot>?start=colodete` (ou `demo`). Sem SMTP configurado, o código de e-mail aparece no console.
+> O bot local usa polling e se recusa a iniciar se o mesmo token estiver em produção (webhook). Use um **bot de teste** do @BotFather para desenvolver.
 
-### Testes
+## Testes
 
-```bash
-npm test                                         # unitários + HTTP
-# integração com Postgres real:
+```powershell
+npm test   # sem banco: só unitários
 docker compose -f docker-compose.dev.yml exec -T db psql -U sbl -d sbl -c "CREATE DATABASE sbl_test"
-TEST_DATABASE_URL=postgres://sbl:sbl_dev@127.0.0.1:5432/sbl_test npm test
+$env:TEST_DATABASE_URL="postgres://sbl:sbl_dev@127.0.0.1:5432/sbl_test"; npm test
 ```
 
-## Produção (VPS)
+## Comandos úteis
 
-```bash
-# .env com: TELEGRAM_TOKEN, DOMAIN, POSTGRES_PASSWORD, PUBLIC_URL=https://$DOMAIN, TELEGRAM_WEBHOOK_SECRET
-docker compose up -d --build
-docker compose exec app node dist/scripts/setWebhook.js
-```
+| Comando | O que faz |
+|---|---|
+| `npm run operador:criar -- colodete email@x.com` | Cria login do painel (mostra a senha uma vez) |
+| `npm run exportar:habilitados -- colodete aprovado` | Gera CSV de habilitados em `exports/` |
+| `npm run coletar:imprensa` | Coleta notícias/edições do Jornal Imprensa Leilões |
+| `npm run seed -- db/seeds/piloto.sql` | Migra o banco e cadastra o leiloeiro piloto |
 
-Só o Caddy expõe portas (80/443). Rotas públicas: `/telegram/webhook` (exige o header secreto do Telegram) e `/healthz`.
+Os comandos usam o `DATABASE_URL` do `.env` — confira se aponta para o banco certo (local ou produção).
 
-## Variáveis de ambiente
+## Deploy
 
-Ver [`.env.example`](.env.example). A aplicação valida tudo no boot e não imprime valores de segredos.
+Produção atual: Render (grátis) + Neon (Postgres e documentos) + Resend (e-mail). Passo a passo em
+[`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md). Cada merge na `main` publica sozinho.
+
+## Segurança e LGPD
+
+- Documentos criptografados (AES-256-GCM) antes de sair do servidor; apagados após 180 dias.
+- Painel com login, bloqueio após 5 erros, permissões (responsável / operador) e auditoria de tudo.
+- O titular apaga os próprios dados pelo bot com `/excluirmeusdados`.
 
 ## Licença
 
