@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { mascararCPF, validarCNPJ, validarCPF, validarEmail } from '../src/util/documentosBr';
+import { mascararCPF, parseDataNascimento, validarCNPJ, validarCPF, validarEmail } from '../src/util/documentosBr';
 import { createLocalDocStore } from '../src/docs/store';
 import { coletarImprensaLeiloes, parseArtigo, parseEdicoes, parseHome } from '../src/scraper/imprensaLeiloes';
 import type { NovaPublicacao, PublicacaoRepo } from '../src/publicacoes/repo';
@@ -123,5 +123,20 @@ describe('scraper Imprensa Leilões', () => {
       'Título três da lista lateral',
     ]);
     expect(gravadas.filter((g) => g.tipo === 'edicao')).toHaveLength(2);
+  });
+});
+
+describe('data de nascimento', () => {
+  const hoje = new Date(Date.UTC(2026, 10, 26)); // 26/11/2026
+  it('aceita maior de 18 e devolve ISO', () => {
+    expect(parseDataNascimento('25/08/1985', hoje)).toEqual({ ok: true, iso: '1985-08-25' });
+    expect(parseDataNascimento('26/11/2008', hoje)).toEqual({ ok: true, iso: '2008-11-26' }); // faz 18 hoje
+  });
+  it('recusa menor, inexistente, futura e formato errado', () => {
+    expect(parseDataNascimento('27/11/2008', hoje)).toEqual({ ok: false, motivo: 'menor' });
+    expect(parseDataNascimento('31/02/1990', hoje)).toEqual({ ok: false, motivo: 'invalida' });
+    expect(parseDataNascimento('01/01/2030', hoje)).toEqual({ ok: false, motivo: 'invalida' });
+    expect(parseDataNascimento('01/01/1890', hoje)).toEqual({ ok: false, motivo: 'invalida' });
+    expect(parseDataNascimento('1985-08-25', hoje)).toEqual({ ok: false, motivo: 'formato' });
   });
 });

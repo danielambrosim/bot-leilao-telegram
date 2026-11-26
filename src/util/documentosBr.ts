@@ -35,6 +35,28 @@ export function validarEmail(valor: string): boolean {
   return valor.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(valor);
 }
 
+/**
+ * "DD/MM/AAAA" -> "AAAA-MM-DD". Recusa data inexistente (31/02), futura, menor de 18 ou acima de 120 anos.
+ * `hoje` injetável para teste.
+ */
+export function parseDataNascimento(
+  texto: string,
+  hoje = new Date(),
+): { ok: true; iso: string } | { ok: false; motivo: 'formato' | 'menor' | 'invalida' } {
+  const m = texto.trim().match(/^(\d{2})[/.-](\d{2})[/.-](\d{4})$/);
+  if (!m) return { ok: false, motivo: 'formato' };
+  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const data = new Date(Date.UTC(a, mes - 1, d));
+  if (data.getUTCFullYear() !== a || data.getUTCMonth() !== mes - 1 || data.getUTCDate() !== d) {
+    return { ok: false, motivo: 'invalida' };
+  }
+  let idade = hoje.getUTCFullYear() - a;
+  if (hoje.getUTCMonth() < mes - 1 || (hoje.getUTCMonth() === mes - 1 && hoje.getUTCDate() < d)) idade--;
+  if (idade < 0 || idade > 120) return { ok: false, motivo: 'invalida' };
+  if (idade < 18) return { ok: false, motivo: 'menor' };
+  return { ok: true, iso: `${m[3]}-${m[2]}-${m[1]}` };
+}
+
 /** "52998224725" -> "***.982.247-**" (exibição sem expor o CPF completo). */
 export function mascararCPF(cpf: string): string {
   const d = somenteDigitos(cpf);

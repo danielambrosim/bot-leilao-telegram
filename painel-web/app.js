@@ -122,6 +122,12 @@ async function abrirFicha(id) {
     el('dt', {}, 'E-mail'), el('dd', {}, a.email, ' ', a.email_verificado_em ? el('span', { class: 'pill aprovado' }, 'confirmado') : null),
     el('dt', {}, 'CPF'), el('dd', { class: 'mono' }, fmtCpf(a.cpf)),
     a.cnpj ? [el('dt', {}, 'CNPJ'), el('dd', { class: 'mono' }, fmtCnpj(a.cnpj))] : null,
+    a.cnpj
+      ? [el('dt', {}, 'Razão social'), el('dd', {}, a.razao_social || '— (pendente)'),
+         el('dt', {}, 'Representante'), el('dd', {}, `${a.nome} · CPF ${fmtCpf(a.cpf)}`)]
+      : [el('dt', {}, 'Nascimento'), el('dd', { class: 'mono' }, a.data_nascimento || '— (pendente)'),
+         el('dt', {}, 'Estado civil'), el('dd', {}, a.estado_civil || '— (pendente)'),
+         el('dt', {}, 'Profissão'), el('dd', {}, a.profissao || '— (pendente)')],
     el('dt', {}, a.cnpj ? 'IE' : 'RG'), el('dd', { class: 'mono' }, a.rg_ie || '—'),
     el('dt', {}, 'Celular'), el('dd', { class: 'mono' }, fmtCel(a.celular)),
     el('dt', {}, 'Endereço'), el('dd', {}, a.endereco),

@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { StatusHabilitacao } from '../arrematantes/repo';
+import { ESTADOS_CIVIS, type EstadoCivil, type StatusHabilitacao } from '../arrematantes/repo';
 
 /**
  * Exportação de habilitados para importar na plataforma do leiloeiro.
@@ -21,6 +21,11 @@ export const COLUNAS = [
   'Bairro',
   'Cidade',
   'UF',
+  'Data de nascimento',
+  'Estado civil',
+  'Profissão',
+  'Razão social',
+  'Representante legal',
   'Status',
   'Criado em',
   'Concluído em',
@@ -41,6 +46,10 @@ export interface LinhaExportacao {
   bairro: string | null;
   cidade: string | null;
   uf: string | null;
+  data_nascimento: string | null; // AAAA-MM-DD
+  estado_civil: EstadoCivil | null;
+  profissao: string | null;
+  razao_social: string | null;
   status: StatusHabilitacao;
   consentido_em: Date;
   decidido_em: Date | null;
@@ -86,6 +95,11 @@ export function gerarCsv(linhas: LinhaExportacao[], arquivos?: ArquivosPorArrema
       l.bairro ?? '',
       l.cidade ?? '',
       l.uf ?? '',
+      l.data_nascimento ? l.data_nascimento.split('-').reverse().join('/') : '',
+      l.estado_civil ? ESTADOS_CIVIS[l.estado_civil] : '',
+      l.profissao ?? '',
+      l.razao_social ?? '',
+      l.cnpj ? `${l.nome} (CPF ${fmtCpf(l.cpf)})` : '',
       STATUS[l.status],
       fmtData(l.consentido_em),
       fmtData(l.decidido_em),
@@ -106,7 +120,9 @@ export async function buscarHabilitados(
   if (!lei[0]) throw new Error(`Leiloeiro "${leiloeiroSlug}" não encontrado`);
   const { rows } = await pool.query<LinhaExportacao>(
     `SELECT a.id::int AS id, a.nome, a.cpf, a.cnpj, a.rg_ie, a.email, a.celular, a.cep, a.logradouro, a.numero,
-            a.complemento, a.bairro, a.cidade, a.uf, h.status, h.consentido_em, h.decidido_em
+            a.complemento, a.bairro, a.cidade, a.uf,
+            to_char(a.data_nascimento, 'YYYY-MM-DD') AS data_nascimento, a.estado_civil, a.profissao, a.razao_social,
+            h.status, h.consentido_em, h.decidido_em
        FROM habilitacoes h JOIN arrematantes a ON a.id = h.arrematante_id
       WHERE h.leiloeiro_id = $1 AND ($2 = 'todos' OR h.status = $2)
       ORDER BY h.consentido_em DESC`,

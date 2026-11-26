@@ -13,8 +13,11 @@ import {
 } from 'grammy';
 import type { LeiloeiroRepo } from '../leiloeiros/repo';
 import {
+  camposFaltantes,
   ConflitoCadastroError,
+  ESTADOS_CIVIS,
   type ArrematanteRepo,
+  type EstadoCivil,
   type NovoDocumento,
   type StatusHabilitacao,
   type TipoDocumento,
@@ -24,7 +27,7 @@ import type { Mailer } from '../mail/mailer';
 import type { DocStore } from '../docs/store';
 import type { PublicacaoRepo } from '../publicacoes/repo';
 import { FONTE as FONTE_IMPRENSA } from '../scraper/imprensaLeiloes';
-import { mascararCPF, somenteDigitos, validarCNPJ, validarCPF, validarEmail } from '../util/documentosBr';
+import { mascararCPF, parseDataNascimento, somenteDigitos, validarCNPJ, validarCPF, validarEmail } from '../util/documentosBr';
 import { escapeHtml, parseStartPayload } from './startPayload';
 import {
   createViaCep,
@@ -45,6 +48,10 @@ type Etapa =
   | 'cpf'
   | 'cnpj_pergunta'
   | 'cnpj'
+  | 'razao_social'
+  | 'nascimento'
+  | 'estado_civil'
+  | 'profissao'
   | 'rg_ie'
   | 'celular'
   | 'cep'
@@ -61,14 +68,23 @@ interface DocPendente {
   mime: string;
 }
 
+type EtapaComplementar = 'nascimento' | 'estado_civil' | 'profissao' | 'razao_social';
+const ORDEM_PF: EtapaComplementar[] = ['nascimento', 'estado_civil', 'profissao'];
+
 export interface Fluxo {
   etapa: Etapa;
   leiloeiro?: { id: number; nome: string; termoVersao: number };
+  /** Cadastro antigo completando dados que o leiloeiro passou a exigir */
+  complemento?: { arrematanteId: number; faltando: EtapaComplementar[] };
   dados: {
     nome?: string;
     email?: string;
     cpf?: string;
     cnpj?: string;
+    nascimento?: string; // AAAA-MM-DD
+    estadoCivil?: EstadoCivil;
+    profissao?: string;
+    razaoSocial?: string;
     rgIe?: string;
     celular?: string;
     cep?: string;
@@ -178,6 +194,16 @@ export const MSG = {
   perguntaCnpj: 'Vai arrematar em nome de empresa (CNPJ)?',
   pedirCnpj: 'Informe o CNPJ:',
   cnpjInvalido: 'CNPJ inválido. Digite novamente:',
+  pedirNascimento: 'Qual é a sua data de nascimento? (DD/MM/AAAA)',
+  nascimentoFormato: 'Use o formato DD/MM/AAAA (ex.: 25/08/1985):',
+  nascimentoInvalido: 'Data inválida. Confira e digite novamente (DD/MM/AAAA):',
+  menorDeIdade: 'É preciso ter 18 anos ou mais para se habilitar em leilões. Cadastro interrompido.',
+  pedirEstadoCivil: 'Qual é o seu estado civil?',
+  pedirProfissao: 'Qual é a sua profissão?',
+  profissaoInvalida: 'Informe a profissão (entre 2 e 80 caracteres):',
+  pedirRazaoSocial: 'Qual é a razão social da empresa?',
+  razaoSocialInvalida: 'Informe a razão social completa (entre 2 e 150 caracteres):',
+  complementoIntro: 'Este leiloeiro exige alguns dados a mais. São poucas perguntas.',
   pedirRg: 'Informe o número do seu RG com órgão emissor e UF (ex.: 1234567 SPTC/ES):',
   pedirIe: 'Informe a Inscrição Estadual da empresa (ou digite ISENTO):',
   rgInvalido: 'Informe o número do documento (entre 4 e 30 caracteres):',
@@ -328,11 +354,50 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
 
   // ----- Botões inline -----
 
-  privado.callbackQuery(/^(termo|cnpj|confirmar|excluir):(\w+)$/, async (ctx) => {
+  // ----- Dados complementares (PF: nascimento, estado civil, profissão · PJ: razão social) -----
+
+  async function perguntar(ctx: BotContext, etapa: EtapaComplementar) {
+    if (etapa === 'estado_civil') {
+      const teclado = new InlineKeyboard();
+      Object.entries(ESTADOS_CIVIS).forEach(([valor, rotulo], i) => {
+        teclado.text(rotulo, `ec:${valor}`);
+        if (i % 2 === 1) teclado.row();
+      });
+      return ctx.reply(MSG.pedirEstadoCivil, { reply_markup: teclado });
+    }
+    const texto = { nascimento: MSG.pedirNascimento, profissao: MSG.pedirProfissao, razao_social: MSG.pedirRazaoSocial }[etapa];
+    return ctx.reply(texto);
+  }
+
+  /** Depois de coletar um dado complementar: próxima pergunta, ou fim do complemento, ou segue o cadastro (RG/IE). */
+  async function seguirComplementares(ctx: BotContext, fluxo: Fluxo, atual: EtapaComplementar) {
+    const sequencia = fluxo.complemento?.faltando ?? (atual === 'razao_social' ? [] : ORDEM_PF);
+    const proxima = sequencia[sequencia.indexOf(atual) + 1];
+    if (proxima) {
+      fluxo.etapa = proxima;
+      return void (await perguntar(ctx, proxima));
+    }
+    if (fluxo.complemento) {
+      const d = fluxo.dados;
+      const l = fluxo.leiloeiro!;
+      await deps.arrematantes.complementar(fluxo.complemento.arrematanteId, {
+        dataNascimento: d.nascimento, estadoCivil: d.estadoCivil, profissao: d.profissao, razaoSocial: d.razaoSocial,
+      });
+      await deps.arrematantes.habilitar(fluxo.complemento.arrematanteId, l.id, l.termoVersao);
+      ctx.session.fluxo = undefined;
+      return void (await mostrarMenu(ctx, `Pronto! Seu cadastro foi enviado para ${l.nome}. Você será avisado aqui quando houver decisão.`));
+    }
+    fluxo.etapa = 'rg_ie';
+    return void (await ctx.reply(fluxo.dados.cnpj ? MSG.pedirIe : MSG.pedirRg));
+  }
+
+  privado.callbackQuery(/^(termo|cnpj|confirmar|excluir|ec):(\w+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const [, grupo, acao] = ctx.match;
     const fluxo = ctx.session.fluxo;
-    const esperado: Record<string, Etapa> = { termo: 'termo', cnpj: 'cnpj_pergunta', confirmar: 'confirmar', excluir: 'excluir' };
+    const esperado: Record<string, Etapa> = {
+      termo: 'termo', cnpj: 'cnpj_pergunta', confirmar: 'confirmar', excluir: 'excluir', ec: 'estado_civil',
+    };
     if (!fluxo || fluxo.etapa !== esperado[grupo!]) return; // botão antigo/fora de ordem: ignora
 
     await ctx.editMessageReplyMarkup().catch(() => undefined); // evita clique duplo
@@ -345,6 +410,14 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
       const arrematante = await deps.arrematantes.buscarPorChat(ctx.chat.id);
       if (arrematante) {
         const l = fluxo.leiloeiro!;
+        const faltando = camposFaltantes(arrematante);
+        if (faltando.length) {
+          // Cadastro feito antes da exigência: completa só o que falta, sem refazer tudo
+          fluxo.complemento = { arrematanteId: arrematante.id, faltando: [...faltando] };
+          fluxo.etapa = faltando[0]!;
+          await ctx.reply(MSG.complementoIntro, { reply_markup: { remove_keyboard: true } });
+          return void (await perguntar(ctx, faltando[0]!));
+        }
         await deps.arrematantes.habilitar(arrematante.id, l.id, l.termoVersao);
         ctx.session.fluxo = undefined;
         return void (await mostrarMenu(ctx, `Pronto! Seu cadastro foi enviado para ${l.nome}. Você será avisado aqui quando houver decisão.`));
@@ -354,8 +427,19 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
     }
 
     if (grupo === 'cnpj') {
-      fluxo.etapa = acao === 'sim' ? 'cnpj' : 'rg_ie';
-      return void (await ctx.reply(acao === 'sim' ? MSG.pedirCnpj : MSG.pedirRg));
+      if (acao === 'sim') {
+        fluxo.etapa = 'cnpj';
+        return void (await ctx.reply(MSG.pedirCnpj));
+      }
+      fluxo.etapa = 'nascimento';
+      return void (await perguntar(ctx, 'nascimento'));
+    }
+
+    if (grupo === 'ec') {
+      if (!(acao! in ESTADOS_CIVIS)) return;
+      fluxo.dados.estadoCivil = acao as EstadoCivil;
+      await ctx.reply(`Estado civil: ${ESTADOS_CIVIS[acao as EstadoCivil]}`);
+      return void (await seguirComplementares(ctx, fluxo, 'estado_civil'));
     }
 
     if (grupo === 'excluir') {
@@ -409,6 +493,9 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
           cidade: d.cidade!,
           uf: d.uf!,
           endereco: d.endereco!,
+          complementares: d.cnpj
+            ? { razaoSocial: d.razaoSocial }
+            : { dataNascimento: d.nascimento, estadoCivil: d.estadoCivil, profissao: d.profissao },
         },
         salvos,
         l.id,
@@ -474,6 +561,10 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
       '<b>Confira seus dados</b>\n\n' +
         `Nome: ${escapeHtml(d.nome!)}\nE-mail: ${escapeHtml(d.email!)}\nCPF: ${mascararCPF(d.cpf!)}\n` +
         (d.cnpj ? `CNPJ: ${d.cnpj}\n` : '') +
+        (d.cnpj
+          ? `Razão social: ${escapeHtml(d.razaoSocial!)}\nRepresentante legal: ${escapeHtml(d.nome!)} (você)\n`
+          : `Nascimento: ${d.nascimento!.split('-').reverse().join('/')}\n` +
+            `Estado civil: ${ESTADOS_CIVIS[d.estadoCivil!]}\nProfissão: ${escapeHtml(d.profissao!)}\n`) +
         `${d.cnpj ? 'IE' : 'RG'}: ${escapeHtml(d.rgIe!)}\nCelular: +${d.celular}\n` +
         `Endereço:${escapeHtml(d.endereco!)}\nDocumentos: identidade ✅ comprovante ✅\n\n` +
         `Enviar para <b>${escapeHtml(fluxo.leiloeiro!.nome)}</b>?`,
@@ -553,8 +644,36 @@ export function createBot(deps: BotDeps): Bot<BotContext> {
       case 'cnpj': {
         if (!validarCNPJ(texto)) return void (await ctx.reply(MSG.cnpjInvalido));
         d.cnpj = somenteDigitos(texto);
-        fluxo.etapa = 'rg_ie';
-        return void (await ctx.reply(MSG.pedirIe));
+        fluxo.etapa = 'razao_social';
+        return void (await perguntar(ctx, 'razao_social'));
+      }
+      case 'razao_social': {
+        const razao = texto.replace(/\s+/g, ' ');
+        if (razao.length < 2 || razao.length > 150 || /[<>]/.test(razao)) return void (await ctx.reply(MSG.razaoSocialInvalida));
+        d.razaoSocial = razao;
+        return void (await seguirComplementares(ctx, fluxo, 'razao_social'));
+      }
+      case 'nascimento': {
+        const r = parseDataNascimento(texto);
+        if (!r.ok) {
+          if (r.motivo === 'menor') {
+            ctx.session.fluxo = undefined;
+            return void (await mostrarMenu(ctx, MSG.menorDeIdade));
+          }
+          return void (await ctx.reply(r.motivo === 'formato' ? MSG.nascimentoFormato : MSG.nascimentoInvalido));
+        }
+        d.nascimento = r.iso;
+        return void (await seguirComplementares(ctx, fluxo, 'nascimento'));
+      }
+      case 'estado_civil':
+        return void (await perguntar(ctx, 'estado_civil'));
+      case 'profissao': {
+        const profissao = texto.replace(/\s+/g, ' ');
+        if (profissao.length < 2 || profissao.length > 80 || /[<>\d]/.test(profissao)) {
+          return void (await ctx.reply(MSG.profissaoInvalida));
+        }
+        d.profissao = profissao;
+        return void (await seguirComplementares(ctx, fluxo, 'profissao'));
       }
       case 'rg_ie': {
         const doc = texto.replace(/\s+/g, ' ').toUpperCase();

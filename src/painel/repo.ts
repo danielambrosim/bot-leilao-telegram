@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import type { StatusHabilitacao, TipoDocumento } from '../arrematantes/repo';
+import { ESTADOS_CIVIS, type EstadoCivil, type StatusHabilitacao, type TipoDocumento } from '../arrematantes/repo';
 
 /** Consultas do painel. TODAS filtram por leiloeiro_id do operador logado (isolamento entre leiloeiros). */
 
@@ -33,6 +33,10 @@ export interface Ficha {
     cidade: string | null;
     uf: string | null;
     email_verificado_em: Date | null;
+    data_nascimento: string | null;
+    estado_civil: string | null;
+    profissao: string | null;
+    razao_social: string | null;
   };
   documentos: Array<{ tipo: TipoDocumento; mime: string; tamanho_bytes: number }>;
   historico: Array<{ em: Date; acao: string; quem: string | null }>;
@@ -76,7 +80,8 @@ export function createPainelRepo(pool: Pool) {
       const { rows } = await pool.query(
         `SELECT h.id::int AS id, h.status, h.termo_versao, h.consentido_em, h.decidido_em, h.motivo,
                 o.email::text AS decidido_por, a.id::int AS arrematante_id,
-                a.nome, a.email::text AS email, a.cpf, a.cnpj, a.rg_ie, a.celular, a.endereco, a.cidade, a.uf, a.email_verificado_em
+                a.nome, a.email::text AS email, a.cpf, a.cnpj, a.rg_ie, a.celular, a.endereco, a.cidade, a.uf, a.email_verificado_em,
+                to_char(a.data_nascimento, 'DD/MM/YYYY') AS data_nascimento, a.estado_civil, a.profissao, a.razao_social
            FROM habilitacoes h JOIN arrematantes a ON a.id = h.arrematante_id
            LEFT JOIN operadores o ON o.id = h.decidido_por
           WHERE h.leiloeiro_id = $1 AND h.id = $2`,
@@ -102,6 +107,9 @@ export function createPainelRepo(pool: Pool) {
         arrematante: {
           nome: r.nome, email: r.email, cpf: r.cpf, cnpj: r.cnpj, rg_ie: r.rg_ie, celular: r.celular,
           endereco: r.endereco, cidade: r.cidade, uf: r.uf, email_verificado_em: r.email_verificado_em,
+          data_nascimento: r.data_nascimento,
+          estado_civil: r.estado_civil ? ESTADOS_CIVIS[r.estado_civil as EstadoCivil] : null,
+          profissao: r.profissao, razao_social: r.razao_social,
         },
         documentos: docs.rows,
         historico: hist.rows,

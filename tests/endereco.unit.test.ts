@@ -47,6 +47,7 @@ describe('CSV de exportação', () => {
       id: 7, nome: '=cmd|calc', cpf: '52998224725', cnpj: '11222333000181', rg_ie: 'ISENTO', email: 'a@b.com',
       celular: '5527999887766', cep: '29015000', logradouro: 'Rua A', numero: '1', complemento: null, bairro: 'Centro',
       cidade: 'Vitória', uf: 'ES', status: 'aprovado', consentido_em: new Date('2026-11-20T15:00:00Z'), decidido_em: null,
+      data_nascimento: null, estado_civil: null, profissao: null, razao_social: 'Cmd Ltda',
     };
     const csv = gerarCsv([linha]);
     expect(csv.startsWith('﻿' + COLUNAS.join(';'))).toBe(true);

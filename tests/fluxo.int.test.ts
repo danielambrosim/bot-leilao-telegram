@@ -70,6 +70,9 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto(ultimoCodigo, chat));
     await bot.handleUpdate(texto('529.982.247-25', chat));
     await bot.handleUpdate(botao('cnpj:nao', chat));
+    await bot.handleUpdate(texto('25/08/1985', chat));
+    await bot.handleUpdate(botao('ec:casado', chat));
+    await bot.handleUpdate(texto('Empresário', chat));
     await bot.handleUpdate(texto('1234567 sptc/es', chat));
     await bot.handleUpdate(contato(chat));
     await bot.handleUpdate(texto('29015-000', chat));
@@ -90,6 +93,7 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
       celular: '5527999887766', cep: '29015000', logradouro: 'Rua Sete de Setembro', numero: '412',
       complemento: 'apto 301', bairro: 'Centro', cidade: 'Vitória', uf: 'ES',
       endereco: 'Rua Sete de Setembro, 412 - apto 301, Centro, Vitória/ES, CEP 29015-000',
+      estado_civil: 'casado', profissao: 'Empresário', razao_social: null,
     });
     expect(a.email_verificado_em).not.toBeNull();
 
@@ -206,6 +210,9 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto(ultimoCodigo));
     await bot.handleUpdate(texto('52998224725'));
     await bot.handleUpdate(botao('cnpj:nao'));
+    await bot.handleUpdate(texto('25/08/1985'));
+    await bot.handleUpdate(botao('ec:casado'));
+    await bot.handleUpdate(texto('Empresário'));
     await bot.handleUpdate(texto('1234567 SPTC/ES'));
     await bot.handleUpdate(texto('27 99988-7766'));
     await bot.handleUpdate(texto('29015000'));
@@ -270,6 +277,9 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto(ultimoCodigo, chat));
     await bot.handleUpdate(texto('52998224725', chat));
     await bot.handleUpdate(botao('cnpj:nao', chat));
+    await bot.handleUpdate(texto('25/08/1985', chat));
+    await bot.handleUpdate(botao('ec:casado', chat));
+    await bot.handleUpdate(texto('Empresário', chat));
     await bot.handleUpdate(texto('1234567 SPTC/ES', chat));
   }
 
@@ -317,6 +327,8 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     await bot.handleUpdate(texto('52998224725'));
     await bot.handleUpdate(botao('cnpj:sim'));
     await bot.handleUpdate(texto('11.222.333/0001-81'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirRazaoSocial);
+    await bot.handleUpdate(texto('Pedra Azul Construções Ltda'));
     expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirIe);
     await bot.handleUpdate(texto('isento'));
     expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirCelular);
@@ -331,6 +343,88 @@ describe.skipIf(!url)('fluxo de cadastro e habilitação (Postgres real)', () =>
     const { linhas } = await buscarHabilitados(pool, 'colodete', 'pendente');
     const csv = gerarCsv(linhas);
     expect(csv.split('\r\n')[1]).toContain('Maria da Silva;Física;529.982.247-25;1234567 SPTC/ES;maria@exemplo.com;(27) 99988-7766;29015-000');
+    expect(csv.split('\r\n')[0]).toContain('Data de nascimento;Estado civil;Profissão;Razão social;Representante legal');
+    expect(csv.split('\r\n')[1]).toContain(';ES;25/08/1985;Casado(a);Empresário;;;Pendente;');
     await expect(buscarHabilitados(pool, 'naoexiste', 'todos')).rejects.toThrow(/não encontrado/);
+  });
+
+  it('nascimento: menor de 18 encerra; data inválida pede de novo', async () => {
+    const { bot, chamadas } = montar();
+    await bot.handleUpdate(texto('/start colodete'));
+    await bot.handleUpdate(botao('termo:aceito'));
+    await bot.handleUpdate(texto('Maria da Silva'));
+    await bot.handleUpdate(texto('maria@exemplo.com'));
+    await bot.handleUpdate(texto(ultimoCodigo));
+    await bot.handleUpdate(texto('52998224725'));
+    await bot.handleUpdate(botao('cnpj:nao'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirNascimento);
+    await bot.handleUpdate(texto('31/02/1990'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.nascimentoInvalido);
+    await bot.handleUpdate(texto('01/01/2015'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.menorDeIdade);
+    expect((await pool.query(`SELECT dados FROM sessoes_bot WHERE chave='42'`)).rows[0].dados).toEqual({});
+  });
+
+  it('estado civil só pelos botões; botão inválido é ignorado', async () => {
+    const { bot, chamadas } = montar();
+    await bot.handleUpdate(texto('/start colodete'));
+    await bot.handleUpdate(botao('termo:aceito'));
+    await bot.handleUpdate(texto('Maria da Silva'));
+    await bot.handleUpdate(texto('maria@exemplo.com'));
+    await bot.handleUpdate(texto(ultimoCodigo));
+    await bot.handleUpdate(texto('52998224725'));
+    await bot.handleUpdate(botao('cnpj:nao'));
+    await bot.handleUpdate(texto('25/08/1985'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirEstadoCivil);
+    await bot.handleUpdate(texto('casado'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirEstadoCivil);
+    await bot.handleUpdate(botao('ec:hacker'));
+    await bot.handleUpdate(botao('ec:uniao_estavel'));
+    expect(textosEnviados(chamadas).slice(-2)).toEqual(['Estado civil: União estável', MSG.pedirProfissao]);
+  });
+
+  it('cadastro antigo (sem os novos dados) completa só o que falta ao se habilitar em outro leiloeiro', async () => {
+    const { bot, chamadas } = montar();
+    await cadastroCompleto(bot);
+    // Simula cadastro feito antes da exigência
+    await pool.query(`UPDATE arrematantes SET data_nascimento = NULL, profissao = NULL`);
+    chamadas.length = 0;
+    await bot.handleUpdate(texto('/start outro'));
+    await bot.handleUpdate(botao('termo:aceito'));
+    expect(textosEnviados(chamadas).slice(-2)).toEqual([MSG.complementoIntro, MSG.pedirNascimento]);
+    await bot.handleUpdate(texto('25/08/1985'));
+    expect(textosEnviados(chamadas).at(-1)).toBe(MSG.pedirProfissao); // estado civil já existia: pulado
+    await bot.handleUpdate(texto('Advogada'));
+    expect(textosEnviados(chamadas).at(-1)).toContain('enviado para Outro Leiloeiro');
+    const { rows } = await pool.query(`SELECT to_char(data_nascimento,'DD/MM/YYYY') d, estado_civil, profissao FROM arrematantes`);
+    expect(rows[0]).toEqual({ d: '25/08/1985', estado_civil: 'casado', profissao: 'Advogada' });
+    expect((await pool.query('SELECT count(*)::int AS n FROM habilitacoes')).rows[0].n).toBe(2);
+  });
+
+  it('PJ completo: razão social gravada e representante = quem cadastrou', async () => {
+    const { bot, chamadas } = montar();
+    await bot.handleUpdate(texto('/start colodete'));
+    await bot.handleUpdate(botao('termo:aceito'));
+    await bot.handleUpdate(texto('Maria da Silva'));
+    await bot.handleUpdate(texto('maria@exemplo.com'));
+    await bot.handleUpdate(texto(ultimoCodigo));
+    await bot.handleUpdate(texto('52998224725'));
+    await bot.handleUpdate(botao('cnpj:sim'));
+    await bot.handleUpdate(texto('11.222.333/0001-81'));
+    await bot.handleUpdate(texto('Pedra Azul Construções Ltda'));
+    await bot.handleUpdate(texto('ISENTO'));
+    await bot.handleUpdate(contato());
+    await bot.handleUpdate(texto('29015000'));
+    await bot.handleUpdate(texto('412'));
+    await bot.handleUpdate(foto());
+    await bot.handleUpdate(pdf());
+    const resumo = textosEnviados(chamadas).at(-1)!;
+    expect(resumo).toContain('Razão social: Pedra Azul Construções Ltda');
+    expect(resumo).toContain('Representante legal: Maria da Silva (você)');
+    await bot.handleUpdate(botao('confirmar:sim'));
+    const { linhas } = await buscarHabilitados(pool, 'colodete', 'pendente');
+    const csv = gerarCsv(linhas);
+    expect(csv).toContain(';Pedra Azul Construções Ltda;Maria da Silva (CPF 529.982.247-25);');
+    expect(csv).toContain('Maria da Silva;Jurídica;11.222.333/0001-81;ISENTO;');
   });
 });

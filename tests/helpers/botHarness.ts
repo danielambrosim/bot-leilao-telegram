@@ -32,6 +32,7 @@ export const arrematantesVazio: ArrematanteRepo = {
   statusHabilitacao: async () => null,
   listarHabilitacoes: async () => [],
   excluir: async () => [],
+  complementar: async () => undefined,
 };
 
 export const docsFake: DocStore = {
