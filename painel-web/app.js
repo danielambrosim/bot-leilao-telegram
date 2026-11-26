@@ -416,15 +416,55 @@ async function paginaConfigDados(alvo) {
   });
   if (ehDono()) $('#topo-acoes').append(salvar);
   alvo.replaceChildren(avisoSomenteLeitura() || '',
-    cartao('Link de habilitação', null, el('div', { class: 'cartao-corpo', style: 'display:flex;flex-direction:column;gap:10px' },
-      link ? el('div', { class: 'link-caixa' }, el('code', {}, link), el('button', { type: 'button', class: 'btn secundario pequeno', onclick: () => copiar(link, 'Link copiado') }, 'Copiar link'))
-        : el('p', { class: 'suave', style: 'margin:0' }, 'Link indisponível no momento.'),
-      el('small', { class: 'suave' }, 'Divulgue nos editais, no site e no WhatsApp. Quem abre o link cai direto no termo deste leiloeiro.'))),
+    cartao('Link de habilitação', null, el('div', { class: 'cartao-corpo' }, link
+      ? el('div', { class: 'qr-bloco' },
+          el('img', { class: 'qr-imagem', src: `${API}/config/qrcode.svg`, alt: `QR code do link de habilitação de ${dados.nome}`, width: 184, height: 184 }),
+          el('div', { class: 'qr-info' },
+            el('div', { class: 'link-caixa' }, el('code', {}, link), el('button', { type: 'button', class: 'btn secundario pequeno', onclick: () => copiar(link, 'Link copiado') }, 'Copiar link')),
+            el('div', { class: 'link-caixa' },
+              el('button', { type: 'button', class: 'btn primario pequeno', onclick: (ev) => baixarQrPng(dados, ev.currentTarget) }, 'Baixar QR code (PNG)'),
+              el('a', { class: 'btn secundario pequeno', href: `${API}/config/qrcode.svg?baixar=1` }, 'Baixar para impressão (SVG)')),
+            el('small', { class: 'suave' }, 'Coloque o QR code nos editais, cartazes do leilão, site e WhatsApp. Quem aponta a câmera do celular abre o bot direto no termo deste leiloeiro.'),
+            el('small', { class: 'suave' }, 'PNG para mensagens e redes sociais; SVG para gráfica e impressão em qualquer tamanho.')))
+      : el('p', { class: 'suave', style: 'margin:0' }, 'Link indisponível no momento.'))),
     cartao('Identificação', null, el('div', { class: 'cartao-corpo' }, el('div', { class: 'form' },
       campo('c-nome', 'Nome de exibição', dados.nome, { max: 80, ajuda: 'Aparece para o arrematante no Telegram.' }),
       campo('c-matricula', 'Matrícula na Junta Comercial', dados.matricula, { max: 60 }),
       campo('c-site', 'Site', dados.site_url, { tipo: 'url' }),
       campo('c-email', 'E-mail de contato', dados.email_contato, { tipo: 'email' })))));
+}
+
+/** PNG 1080×1240 com o QR e o nome do leiloeiro embaixo (pronto para WhatsApp/Instagram). */
+async function baixarQrPng(dados, botao) {
+  botao.disabled = true;
+  try {
+    const svg = await fetch(`${API}/config/qrcode.svg`, { credentials: 'same-origin' });
+    if (!svg.ok) throw new Error('QR indisponível');
+    const url = URL.createObjectURL(await svg.blob());
+    const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = falha; i.src = url; });
+    const L = 1080, A = 1240;
+    const c = document.createElement('canvas');
+    c.width = L; c.height = A;
+    const g = c.getContext('2d');
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, L, A);
+    g.imageSmoothingEnabled = false;
+    g.drawImage(img, 40, 40, L - 80, L - 80);
+    URL.revokeObjectURL(url);
+    g.fillStyle = '#0F1B2D'; g.textAlign = 'center';
+    g.font = '600 52px "Segoe UI", Roboto, Arial, sans-serif';
+    g.fillText('Habilite-se para o leilão', L / 2, L + 40);
+    g.font = '400 40px "Segoe UI", Roboto, Arial, sans-serif';
+    g.fillStyle = '#3B4B61';
+    g.fillText(dados.nome, L / 2, L + 110);
+    const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+    const a = el('a', { href: URL.createObjectURL(blob), download: `qrcode-habilitacao-${dados.slug}.png` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('QR code baixado.');
+  } catch (e) {
+    toast(`Não foi possível gerar o PNG: ${e.message}`);
+  }
+  botao.disabled = false;
 }
 
 async function paginaConfigTermo(alvo) {

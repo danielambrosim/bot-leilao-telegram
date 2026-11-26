@@ -12,6 +12,9 @@ import { createPainelRepo } from '../src/painel/repo';
 import { createPainelRouter } from '../src/painel/router';
 import { createGestaoRepo } from '../src/painel/gestao';
 import { expurgarDocumentosVencidos } from '../src/tarefas/manutencao';
+import { gerarQrSvg } from '../src/painel/qrcode';
+import qrcode from 'qrcode-generator';
+import jsQR from 'jsqr';
 
 const url = process.env.TEST_DATABASE_URL;
 const SENHA = 'senha-forte-123';
@@ -148,6 +151,19 @@ describe.skipIf(!url)('gestão do painel: visão geral, configuração, equipe (
     expect(a.body.itens.some((i: { acao: string }) => i.acao === 'painel.login')).toBe(true);
   });
 
+  it('QR code: exige login, serve SVG e oferece download', async () => {
+    expect((await request(app()).get('/painel/api/config/qrcode.svg')).status).toBe(401);
+    const op = await logar('op@colodete.test');
+    const r = await op.get('/painel/api/config/qrcode.svg').buffer(true).parse((res, cb) => {
+      const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p).toString()));
+    });
+    expect(r.status).toBe(200);
+    expect(r.headers['content-type']).toMatch(/image\/svg\+xml/);
+    expect(r.body as string).toMatch(/<svg[\s\S]*<path/);
+    const d = await op.get('/painel/api/config/qrcode.svg?baixar=1');
+    expect(d.headers['content-disposition']).toBe('attachment; filename="qrcode-habilitacao-colodete.svg"');
+  });
+
   it('expurgo apaga do storage e do banco só documentos vencidos', async () => {
     const vencido = await docs.salvar('chat-1', Buffer.from('velho'));
     const valido = await docs.salvar('chat-1', Buffer.from('novo'));
@@ -161,5 +177,27 @@ describe.skipIf(!url)('gestão do painel: visão geral, configuração, equipe (
     expect((await pool.query('SELECT r2_key FROM documentos')).rows).toEqual([{ r2_key: valido.chave }]);
     expect(await readdir(path.join(dir, 'chat-1'))).toHaveLength(1);
     expect((await pool.query(`SELECT detalhes FROM auditoria WHERE acao = 'documentos.expurgados'`)).rows[0].detalhes).toEqual({ quantidade: 1 });
+  });
+});
+
+describe('QR code do link de habilitação', () => {
+  it('decodifica exatamente para o link do leiloeiro', async () => {
+    const link = 'https://t.me/api_leilao_bot?start=colodete';
+    const q = qrcode(0, 'M');
+    q.addData(link, 'Byte');
+    q.make();
+    // Rasteriza a matriz (4 px por módulo + margem de 4 módulos) e lê como uma câmera leria
+    const n = q.getModuleCount(), esc = 4, margem = 4, lado = (n + margem * 2) * esc;
+    const px = new Uint8ClampedArray(lado * lado * 4).fill(255);
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) {
+      for (let y = 0; y < esc; y++) for (let x = 0; x < esc; x++) {
+        const i = (((r + margem) * esc + y) * lado + (c + margem) * esc + x) * 4;
+        px[i] = px[i + 1] = px[i + 2] = 0;
+      }
+    }
+    expect(jsQR(px, lado, lado)?.data).toBe(link);
+    const svg = gerarQrSvg(link);
+    expect(svg).toMatch(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    expect(svg).toContain(`viewBox="0 0 ${(n + 8) * 8} ${(n + 8) * 8}"`);
   });
 });

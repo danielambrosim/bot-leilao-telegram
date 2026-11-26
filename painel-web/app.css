@@ -162,6 +162,9 @@ input[type="text"], input[type="email"], input[type="url"], input[type="search"]
 textarea { height: auto; padding: 12px; line-height: 1.55; resize: vertical; }
 input:disabled, textarea:disabled, select:disabled { background: var(--superficie-2); color: var(--suave); }
 .link-caixa { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.qr-bloco { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.qr-imagem { width: 184px; height: 184px; border: 1px solid var(--linha); border-radius: 8px; background: #fff; flex: none; image-rendering: pixelated; }
+.qr-info { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .link-caixa code { font-family: var(--f-mono); background: var(--fundo); border: 1px solid var(--linha); border-radius: 6px; padding: 9px 12px; overflow-wrap: anywhere; }
 
 .alerta { padding: 10px 14px; border-radius: 6px; margin: 0; }

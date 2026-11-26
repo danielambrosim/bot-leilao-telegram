@@ -10,6 +10,7 @@ import type { Pool } from 'pg';
 import { SESSAO_HORAS, type AuthPainel, type Operador } from './auth';
 import type { Decisao, PainelRepo } from './repo';
 import { ValidacaoError, type GestaoRepo } from './gestao';
+import { gerarQrSvg } from './qrcode';
 
 export const PAINEL_PATH = '/painel';
 const COOKIE = 'sbl_sessao';
@@ -250,6 +251,20 @@ export function createPainelRouter(deps: PainelDeps): Router {
         },
       });
     });
+    // QR code do link de habilitação (para editais impressos, cartazes, WhatsApp)
+    api.get('/config/qrcode.svg', exigirLogin, async (req: ReqOp, res) => {
+      if (!deps.botUsername) {
+        res.status(404).json({ erro: 'link_indisponivel' });
+        return;
+      }
+      const link = `https://t.me/${deps.botUsername}?start=${op(req).leiloeiro_slug}`;
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      if (req.query.baixar === '1') {
+        res.setHeader('Content-Disposition', `attachment; filename="qrcode-habilitacao-${op(req).leiloeiro_slug}.svg"`);
+      }
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>\n${gerarQrSvg(link)}`);
+    });
+
     api.put('/config/dados', exigirLogin, exigirDono, tratar(async (req: ReqOp, res) => {
       await g.salvarDados(op(req).leiloeiro_id, op(req).id, req.body ?? {});
       res.json({ ok: true });
