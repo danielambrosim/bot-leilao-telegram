@@ -11,6 +11,9 @@ import { createBot, type SessionData } from './bot/createBot';
 import { createPgSessionStorage } from './bot/sessionStorage';
 import { createApp, WEBHOOK_PATH } from './http/app';
 import { executarManutencao } from './tarefas/manutencao';
+import { createAuthPainel } from './painel/auth';
+import { createPainelRepo } from './painel/repo';
+import { createPainelRouter } from './painel/router';
 
 function criarDocStore(env: Env): DocStore {
   if (env.DOCS_STORAGE === 's3') {
@@ -35,24 +38,34 @@ async function main() {
   await pool.query('SELECT 1'); // falha cedo e com mensagem clara se o banco estiver fora
 
   const publicacoes = createPublicacaoRepo(pool);
+  const docs = criarDocStore(env);
   const bot = createBot({
     token: env.TELEGRAM_TOKEN,
     leiloeiros: createLeiloeiroRepo(pool),
     arrematantes: createArrematanteRepo(pool),
     codigos: createCodigoEmailService(pool, env.APP_SECRET),
     mailer: createMailer(env),
-    docs: criarDocStore(env),
+    docs,
     publicacoes,
     sessionStorage: createPgSessionStorage<SessionData>(pool),
   });
   const manutencao = () => executarManutencao(pool, publicacoes, { coletar: env.SCRAPER_ENABLED });
   const webhook = env.BOT_MODE === 'webhook';
+  const painel = createPainelRouter({
+    pool,
+    auth: createAuthPainel(pool),
+    repo: createPainelRepo(pool),
+    docs,
+    telegram: bot.api,
+    producao: env.NODE_ENV === 'production',
+  });
   const app = createApp({
     pool,
     bot: webhook ? bot : undefined,
     webhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
     cronSecret: env.CRON_SECRET,
     manutencao,
+    painel,
   });
 
   const host = env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Painel de Habilitação</title>
+  <link rel="stylesheet" href="/painel/static/app.css">
+  <script src="/painel/static/app.js" defer></script>
+</head>
+<body>
+  <!-- Login -->
+  <main id="tela-login" class="login" hidden>
+    <form id="form-login" class="login-card" autocomplete="on">
+      <div class="brand">
+        <div class="gavel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.6 2.3l7.1 7.1-2.8 2.8-1.4-1.4-2.8 2.8 5.7 5.7-2.1 2.1-5.7-5.7-2.8 2.8 1.4 1.4-2.8 2.8L1.3 15.6l2.8-2.8 1.4 1.4 7.1-7.1-1.4-1.4 3.4-3.4zM2 21h9v2H2z"/></svg></div>
+        <div><h1>Painel de habilitação</h1><p>Acesso do leiloeiro</p></div>
+      </div>
+      <label for="login-email">E-mail</label>
+      <input id="login-email" type="email" autocomplete="username" required maxlength="254">
+      <label for="login-senha">Senha</label>
+      <input id="login-senha" type="password" autocomplete="current-password" required maxlength="200">
+      <p id="login-erro" class="erro" role="alert" hidden></p>
+      <button class="btn primary" type="submit">Entrar</button>
+    </form>
+  </main>
+
+  <!-- Painel -->
+  <div id="tela-painel" class="wrap" hidden>
+    <header class="top">
+      <div class="brand">
+        <div class="gavel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.6 2.3l7.1 7.1-2.8 2.8-1.4-1.4-2.8 2.8 5.7 5.7-2.1 2.1-5.7-5.7-2.8 2.8 1.4 1.4-2.8 2.8L1.3 15.6l2.8-2.8 1.4 1.4 7.1-7.1-1.4-1.4 3.4-3.4zM2 21h9v2H2z"/></svg></div>
+        <div><h1 id="nome-leiloeiro">—</h1><p>Painel de habilitação de arrematantes</p></div>
+      </div>
+      <div class="sessao">
+        <span id="email-operador" class="muted"></span>
+        <a id="btn-exportar" class="btn ghost" href="/painel/api/exportar?status=aprovado">Exportar aprovados (CSV)</a>
+        <button id="btn-sair" class="btn ghost" type="button">Sair</button>
+      </div>
+    </header>
+
+    <section class="kpis" aria-label="Resumo">
+      <div class="kpi pend"><small>Aguardando análise</small><strong id="k-pendente">0</strong></div>
+      <div class="kpi"><small>Aprovados</small><strong id="k-aprovado">0</strong></div>
+      <div class="kpi"><small>Recusados</small><strong id="k-recusado">0</strong></div>
+      <div class="kpi"><small>Revogados</small><strong id="k-revogado">0</strong></div>
+    </section>
+
+    <main class="desk">
+      <section class="panel" aria-label="Fila de habilitações">
+        <div class="panel-head">
+          <h2>Habilitações</h2>
+          <div class="tabs" role="group" aria-label="Filtrar por status">
+            <button class="tab" type="button" data-f="pendente" aria-pressed="true">Pendentes</button>
+            <button class="tab" type="button" data-f="aprovado" aria-pressed="false">Aprovados</button>
+            <button class="tab" type="button" data-f="recusado" aria-pressed="false">Recusados</button>
+            <button class="tab" type="button" data-f="todos" aria-pressed="false">Todos</button>
+          </div>
+          <input id="busca" class="search" type="search" placeholder="Buscar por nome, e-mail ou CPF" aria-label="Buscar">
+        </div>
+        <div class="list" id="lista"></div>
+      </section>
+      <section class="panel" aria-label="Ficha do arrematante" id="ficha"><p class="empty">Selecione uma habilitação.</p></section>
+    </main>
+    <p class="foot">Cada abertura de ficha, documento, decisão e exportação fica registrada na auditoria.</p>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>

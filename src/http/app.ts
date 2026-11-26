@@ -13,6 +13,8 @@ export interface AppDeps {
   /** Segredo do agendador externo; sem ele a rota de manutenção não existe */
   cronSecret?: string;
   manutencao?: () => Promise<unknown>;
+  /** Painel do leiloeiro, montado em /painel */
+  painel?: express.Router;
 }
 
 export const WEBHOOK_PATH = '/telegram/webhook';
@@ -24,7 +26,7 @@ function segredoConfere(header: string | undefined, esperado: string): boolean {
   return recebido.length === alvo.length && timingSafeEqual(recebido, alvo);
 }
 
-export function createApp({ pool, bot, webhookSecret, cronSecret, manutencao }: AppDeps) {
+export function createApp({ pool, bot, webhookSecret, cronSecret, manutencao, painel }: AppDeps) {
   const app = express();
   app.set('trust proxy', 1); // atrás de proxy (Caddy / Render)
   app.use(helmet());
@@ -68,6 +70,11 @@ export function createApp({ pool, bot, webhookSecret, cronSecret, manutencao }: 
     );
   }
 
+  if (painel) {
+    app.get('/', (_req, res) => res.redirect(302, '/painel/'));
+    app.use('/painel', painel);
+  }
+
   // Tudo que não foi declarado acima não existe (sem rotas admin abertas)
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });
@@ -75,6 +82,12 @@ export function createApp({ pool, bot, webhookSecret, cronSecret, manutencao }: 
 
   // Nunca devolver stack trace ou mensagem interna ao cliente
   const onError: ErrorRequestHandler = (err, _req, res, _next) => {
+    // Erros do cliente (ex.: 403/404 do express.static em path traversal) mantêm o status, sem detalhes
+    const status = Number(err?.status ?? err?.statusCode);
+    if (status >= 400 && status < 500) {
+      res.status(status === 403 ? 404 : status).json({ error: 'not_found' });
+      return;
+    }
     console.error('[http]', err);
     res.status(500).json({ error: 'internal_error' });
   };

@@ -15,7 +15,7 @@ describe.skipIf(!url)('migrações + repositório (Postgres real)', () => {
 
   it('aplica do zero e é idempotente', async () => {
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-    expect(await migrate(pool)).toEqual(['001_init.sql', '002_publicacoes.sql', '003_dados_cadastrais.sql']);
+    expect(await migrate(pool)).toEqual(['001_init.sql', '002_publicacoes.sql', '003_dados_cadastrais.sql', '004_painel.sql']);
     expect(await migrate(pool)).toEqual([]);
   });
 

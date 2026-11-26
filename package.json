@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "coletar:imprensa": "tsx src/scripts/coletarImprensa.ts",
     "exportar:habilitados": "tsx src/scripts/exportarHabilitados.ts",
-    "seed": "tsx src/scripts/seed.ts"
+    "seed": "tsx src/scripts/seed.ts",
+    "operador:criar": "tsx src/scripts/criarOperador.ts"
   },
   "repository": {
     "type": "git",

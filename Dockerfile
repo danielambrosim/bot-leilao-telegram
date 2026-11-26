@@ -15,6 +15,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY db ./db
+COPY painel-web ./painel-web
 # Pasta de documentos precisa pertencer ao usuário sem privilégios (senão EACCES ao salvar)
 RUN mkdir -p /app/data/docs && chown -R node:node /app/data && chmod 700 /app/data
 USER node
