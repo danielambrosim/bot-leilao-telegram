@@ -10,6 +10,11 @@ updates:
     groups:
       dependencias:
         patterns: ["*"]
+    ignore:
+      # Os tipos do Node precisam acompanhar o Node de produção (node:22 no Dockerfile e no CI).
+      # Versão maior só junto com a troca do Node; correções da 22.x continuam vindo.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 
